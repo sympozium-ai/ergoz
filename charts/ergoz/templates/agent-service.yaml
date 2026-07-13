@@ -1,0 +1,14 @@
+# Headless: the collector resolves this name to every agent pod IP.
+apiVersion: v1
+kind: Service
+metadata:
+  name: ergoz-agent
+  labels:
+    {{- include "ergoz.labels" . | nindent 4 }}
+spec:
+  clusterIP: None
+  selector:
+    app.kubernetes.io/name: ergoz-agent
+  ports:
+    - name: metrics
+      port: {{ .Values.agent.port }}

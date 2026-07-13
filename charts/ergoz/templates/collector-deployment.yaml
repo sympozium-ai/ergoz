@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ergoz-collector
+  labels:
+    app.kubernetes.io/name: ergoz-collector
+    {{- include "ergoz.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: ergoz-collector
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: ergoz-collector
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: collector
+          image: {{ include "ergoz.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["/ergoz-collector"]
+          env:
+            - name: ERGOZ_AGENT_SERVICE
+              value: "ergoz-agent.{{ .Release.Namespace }}.svc.cluster.local"
+            - name: ERGOZ_AGENT_PORT
+              value: {{ .Values.agent.port | quote }}
+            - name: ERGOZ_SCRAPE_INTERVAL
+              value: {{ .Values.collector.scrapeInterval | quote }}
+            - name: ERGOZ_LISTEN
+              value: ":{{ .Values.collector.port }}"
+          ports:
+            - containerPort: {{ .Values.collector.port }}
+              name: http
+          securityContext:
+            {{- include "ergoz.securityContext" . | nindent 12 }}
+          resources:
+            {{- toYaml .Values.collector.resources | nindent 12 }}
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http

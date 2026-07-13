@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: ergoz-collector
+  labels:
+    {{- include "ergoz.labels" . | nindent 4 }}
+spec:
+  selector:
+    app.kubernetes.io/name: ergoz-collector
+  ports:
+    - name: http
+      port: {{ .Values.collector.port }}

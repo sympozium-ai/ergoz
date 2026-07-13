@@ -1,0 +1,32 @@
+image:
+  repository: ghcr.io/sympozium-ai/ergoz
+  # -- Defaults to the chart appVersion with a "v" prefix (released images
+  # are tagged vX.Y.Z). Override for sideloaded builds (e.g. "dev").
+  tag: ""
+  pullPolicy: IfNotPresent
+
+# -- For the private ghcr package: [{name: ghcr-pull}]. `ergoz install
+# --ghcr-token` creates the secret and sets this automatically.
+imagePullSecrets: []
+
+agent:
+  # -- Power sampling cadence. A hwmon read costs ~5 µs; 1s is cheap.
+  sampleInterval: 1s
+  port: 9743
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      memory: 64Mi
+
+collector:
+  # -- How often the collector scrapes every agent.
+  scrapeInterval: 5s
+  port: 9744
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      memory: 128Mi

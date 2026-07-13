@@ -1,112 +1,228 @@
-// Package installer applies and removes the embedded ergoz manifests using
-// server-side apply — the CLI equivalent of `kubectl apply -f deploy/`.
+// Package installer installs/uninstalls ergoz as a real Helm release from
+// the embedded chart — `helm list` shows it, upgrades are Helm upgrades, and
+// the same chart works standalone via `helm install charts/ergoz`.
 package installer
 
 import (
-	"bytes"
 	"context"
 	"fmt"
-	"io"
-	"regexp"
+	"io/fs"
 	"time"
 
+	"helm.sh/helm/v3/pkg/action"
+	"helm.sh/helm/v3/pkg/chart"
+	"helm.sh/helm/v3/pkg/chart/loader"
+	"helm.sh/helm/v3/pkg/storage/driver"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/types"
-	yamlutil "k8s.io/apimachinery/pkg/util/yaml"
-	"k8s.io/client-go/discovery"
-	"k8s.io/client-go/discovery/cached/memory"
-	"k8s.io/client-go/dynamic"
+	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
-	"k8s.io/client-go/restmapper"
-	"sigs.k8s.io/yaml"
-)
 
-const fieldManager = "ergoz-cli"
+	"github.com/sympozium-ai/ergoz/charts"
+)
 
 // Namespace is where ergoz installs. Fixed for Phase 0.
 const Namespace = "ergoz-system"
 
-var imageTagRe = regexp.MustCompile(`(image:\s*ghcr\.io/sympozium-ai/ergoz):[\w.-]+`)
+// ReleaseName is the Helm release name.
+const ReleaseName = "ergoz"
 
-// Apply server-side-applies every document in the manifest. imageTag, when
-// non-empty, overrides the image tag (e.g. a kind-sideloaded build).
-// Returns the applied object identifiers in order.
-func Apply(ctx context.Context, cfg *rest.Config, manifest []byte, imageTag string) ([]string, error) {
-	if imageTag != "" {
-		manifest = imageTagRe.ReplaceAll(manifest, []byte("${1}:"+imageTag))
-	}
+// PullSecretName is the docker-registry secret created by --ghcr-token.
+const PullSecretName = "ghcr-pull"
 
-	dyn, err := dynamic.NewForConfig(cfg)
-	if err != nil {
-		return nil, err
-	}
-	disc, err := discovery.NewDiscoveryClientForConfig(cfg)
-	if err != nil {
-		return nil, err
-	}
-	mapper := restmapper.NewDeferredDiscoveryRESTMapper(memory.NewMemCacheClient(disc))
-
-	var applied []string
-	dec := yamlutil.NewYAMLOrJSONDecoder(bytes.NewReader(manifest), 4096)
-	for {
-		var raw map[string]interface{}
-		if err := dec.Decode(&raw); err != nil {
-			if err == io.EOF {
-				break
-			}
-			return applied, fmt.Errorf("decoding manifest: %w", err)
-		}
-		if len(raw) == 0 {
-			continue
-		}
-		obj := &unstructured.Unstructured{Object: raw}
-
-		gvk := obj.GroupVersionKind()
-		mapping, err := mapper.RESTMapping(gvk.GroupKind(), gvk.Version)
-		if err != nil {
-			return applied, fmt.Errorf("mapping %s: %w", gvk, err)
-		}
-		ri := resourceFor(dyn, mapping, obj)
-
-		data, err := yaml.Marshal(obj.Object)
-		if err != nil {
-			return applied, err
-		}
-		if _, err := ri.Patch(ctx, obj.GetName(), types.ApplyPatchType, data, metav1.PatchOptions{
-			FieldManager: fieldManager,
-			Force:        ptr(true),
-		}); err != nil {
-			return applied, fmt.Errorf("applying %s %s: %w", gvk.Kind, obj.GetName(), err)
-		}
-		applied = append(applied, fmt.Sprintf("%s/%s", gvk.Kind, obj.GetName()))
-	}
-	return applied, nil
+// KubeFlags carries the CLI's kubeconfig selection into Helm's config getter.
+type KubeFlags struct {
+	Kubeconfig string
+	Context    string
 }
 
-func resourceFor(dyn dynamic.Interface, mapping *meta.RESTMapping, obj *unstructured.Unstructured) dynamic.ResourceInterface {
-	if mapping.Scope.Name() == meta.RESTScopeNameNamespace {
-		ns := obj.GetNamespace()
-		if ns == "" {
-			ns = Namespace
-		}
-		return dyn.Resource(mapping.Resource).Namespace(ns)
+func (k KubeFlags) getter(namespace string) *genericclioptions.ConfigFlags {
+	cf := genericclioptions.NewConfigFlags(false)
+	cf.Namespace = &namespace
+	if k.Kubeconfig != "" {
+		cf.KubeConfig = &k.Kubeconfig
 	}
-	return dyn.Resource(mapping.Resource)
+	if k.Context != "" {
+		cf.Context = &k.Context
+	}
+	return cf
 }
 
-// Uninstall deletes the ergoz namespace and waits for it to disappear.
-func Uninstall(ctx context.Context, cfg *rest.Config, wait time.Duration) error {
-	cs, err := kubernetes.NewForConfig(cfg)
+func newActionConfig(k KubeFlags) (*action.Configuration, error) {
+	cfg := new(action.Configuration)
+	if err := cfg.Init(k.getter(Namespace), Namespace, "secret", func(string, ...interface{}) {}); err != nil {
+		return nil, fmt.Errorf("initializing helm: %w", err)
+	}
+	return cfg, nil
+}
+
+// LoadChart returns the embedded ergoz chart.
+func LoadChart() (*chart.Chart, error) {
+	var files []*loader.BufferedFile
+	err := fs.WalkDir(charts.Ergoz, "ergoz", func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			return nil
+		}
+		data, err := fs.ReadFile(charts.Ergoz, path)
+		if err != nil {
+			return err
+		}
+		// Chart paths are relative to the chart root ("ergoz/Chart.yaml" → "Chart.yaml").
+		files = append(files, &loader.BufferedFile{Name: path[len("ergoz/"):], Data: data})
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("reading embedded chart: %w", err)
+	}
+	return loader.LoadFiles(files)
+}
+
+// InstallOptions parameterize InstallOrUpgrade.
+type InstallOptions struct {
+	// ImageTag overrides the image tag (e.g. a kind-sideloaded "dev" build).
+	ImageTag string
+	// GHCRToken, when set, creates/updates a docker-registry pull secret for
+	// ghcr.io (needed while the image package is private) and wires it into
+	// imagePullSecrets.
+	GHCRToken string
+	// GHCRUser is the username for the pull secret (any non-empty string
+	// works for ghcr token auth; defaults to "token").
+	GHCRUser string
+	Timeout  time.Duration
+}
+
+// InstallOrUpgrade installs the embedded chart, or upgrades the existing
+// release. Returns the release version and whether it was a fresh install.
+func InstallOrUpgrade(ctx context.Context, k KubeFlags, restCfg *rest.Config, opts InstallOptions) (int, bool, error) {
+	ch, err := LoadChart()
+	if err != nil {
+		return 0, false, err
+	}
+
+	vals := map[string]interface{}{}
+	if opts.ImageTag != "" {
+		vals["image"] = map[string]interface{}{"tag": opts.ImageTag}
+	}
+	if opts.GHCRToken != "" {
+		if err := ensurePullSecret(ctx, restCfg, opts.GHCRUser, opts.GHCRToken); err != nil {
+			return 0, false, err
+		}
+		vals["imagePullSecrets"] = []interface{}{map[string]interface{}{"name": PullSecretName}}
+	}
+
+	cfg, err := newActionConfig(k)
+	if err != nil {
+		return 0, false, err
+	}
+	timeout := opts.Timeout
+	if timeout == 0 {
+		timeout = 2 * time.Minute
+	}
+
+	hist := action.NewHistory(cfg)
+	hist.Max = 1
+	if _, err := hist.Run(ReleaseName); err == driver.ErrReleaseNotFound {
+		inst := action.NewInstall(cfg)
+		inst.ReleaseName = ReleaseName
+		inst.Namespace = Namespace
+		inst.CreateNamespace = true
+		inst.Timeout = timeout
+		rel, err := inst.RunWithContext(ctx, ch, vals)
+		if err != nil {
+			return 0, false, fmt.Errorf("helm install: %w", err)
+		}
+		return rel.Version, true, nil
+	}
+
+	up := action.NewUpgrade(cfg)
+	up.Namespace = Namespace
+	up.Timeout = timeout
+	rel, err := up.RunWithContext(ctx, ReleaseName, ch, vals)
+	if err != nil {
+		return 0, false, fmt.Errorf("helm upgrade: %w", err)
+	}
+	return rel.Version, false, nil
+}
+
+// ensurePullSecret creates or updates the ghcr docker-registry secret.
+func ensurePullSecret(ctx context.Context, restCfg *rest.Config, user, token string) error {
+	if user == "" {
+		user = "token"
+	}
+	cs, err := kubernetes.NewForConfig(restCfg)
+	if err != nil {
+		return err
+	}
+	// The namespace may not exist yet on first install (Helm creates it
+	// later) — create it here so the secret has a home.
+	_, err = cs.CoreV1().Namespaces().Create(ctx, &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{Name: Namespace},
+	}, metav1.CreateOptions{})
+	if err != nil && !apierrors.IsAlreadyExists(err) {
+		return err
+	}
+
+	dockercfg := fmt.Sprintf(`{"auths":{"ghcr.io":{"username":%q,"password":%q}}}`, user, token)
+	secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: PullSecretName, Namespace: Namespace},
+		Type:       corev1.SecretTypeDockerConfigJson,
+		StringData: map[string]string{corev1.DockerConfigJsonKey: dockercfg},
+	}
+	_, err = cs.CoreV1().Secrets(Namespace).Create(ctx, secret, metav1.CreateOptions{})
+	if apierrors.IsAlreadyExists(err) {
+		_, err = cs.CoreV1().Secrets(Namespace).Update(ctx, secret, metav1.UpdateOptions{})
+	}
+	return err
+}
+
+// Uninstall removes the Helm release. Installs made by the pre-Helm CLI
+// (raw server-side apply) have no release record, so when none is found it
+// falls back to deleting the namespace.
+func Uninstall(ctx context.Context, k KubeFlags, restCfg *rest.Config, wait time.Duration) error {
+	cfg, err := newActionConfig(k)
+	if err != nil {
+		return err
+	}
+	hist := action.NewHistory(cfg)
+	hist.Max = 1
+	if _, err := hist.Run(ReleaseName); err == driver.ErrReleaseNotFound {
+		return legacyUninstall(ctx, restCfg, wait)
+	}
+
+	un := action.NewUninstall(cfg)
+	un.Timeout = wait
+	un.KeepHistory = false
+	if _, err := un.Run(ReleaseName); err != nil {
+		return fmt.Errorf("helm uninstall: %w", err)
+	}
+	// The chart's resources are gone; remove the (Helm-created) namespace too.
+	return deleteNamespace(ctx, restCfg, wait)
+}
+
+func legacyUninstall(ctx context.Context, restCfg *rest.Config, wait time.Duration) error {
+	cs, err := kubernetes.NewForConfig(restCfg)
+	if err != nil {
+		return err
+	}
+	if _, err := cs.CoreV1().Namespaces().Get(ctx, Namespace, metav1.GetOptions{}); apierrors.IsNotFound(err) {
+		return fmt.Errorf("no Helm release %q and no namespace %q — ergoz is not installed", ReleaseName, Namespace)
+	}
+	return deleteNamespace(ctx, restCfg, wait)
+}
+
+func deleteNamespace(ctx context.Context, restCfg *rest.Config, wait time.Duration) error {
+	cs, err := kubernetes.NewForConfig(restCfg)
 	if err != nil {
 		return err
 	}
 	err = cs.CoreV1().Namespaces().Delete(ctx, Namespace, metav1.DeleteOptions{})
 	if apierrors.IsNotFound(err) {
-		return fmt.Errorf("namespace %q not found — ergoz is not installed", Namespace)
+		return nil
 	}
 	if err != nil {
 		return err
@@ -123,8 +239,8 @@ func Uninstall(ctx context.Context, cfg *rest.Config, wait time.Duration) error 
 
 // WaitReady polls until the agent DaemonSet and collector Deployment report
 // ready, or the timeout elapses.
-func WaitReady(ctx context.Context, cfg *rest.Config, timeout time.Duration) error {
-	cs, err := kubernetes.NewForConfig(cfg)
+func WaitReady(ctx context.Context, restCfg *rest.Config, timeout time.Duration) error {
+	cs, err := kubernetes.NewForConfig(restCfg)
 	if err != nil {
 		return err
 	}
@@ -144,8 +260,8 @@ func WaitReady(ctx context.Context, cfg *rest.Config, timeout time.Duration) err
 
 // CollectorFleet fetches the collector's /api/v1/fleet JSON through the
 // kube-apiserver service proxy, so `ergoz status` needs no port-forward.
-func CollectorFleet(ctx context.Context, cfg *rest.Config) ([]byte, error) {
-	cs, err := kubernetes.NewForConfig(cfg)
+func CollectorFleet(ctx context.Context, restCfg *rest.Config) ([]byte, error) {
+	cs, err := kubernetes.NewForConfig(restCfg)
 	if err != nil {
 		return nil, err
 	}
@@ -160,5 +276,3 @@ func CollectorFleet(ctx context.Context, cfg *rest.Config) ([]byte, error) {
 	}
 	return body, nil
 }
-
-func ptr[T any](v T) *T { return &v }

@@ -98,6 +98,21 @@ $ ergoz uninstall
 no port-forward needed. `ergoz install --image-tag dev` targets a sideloaded
 (e.g. `kind load`-ed) image. `--kubeconfig`/`--context` behave as usual.
 
+`ergoz install` drives the **embedded Helm chart** — it creates a real Helm
+release (`ergoz` in `ergoz-system`, visible in `helm list`), and re-running
+install performs a Helm upgrade. Helm users can skip the CLI entirely:
+
+```bash
+helm install ergoz charts/ergoz -n ergoz-system --create-namespace
+```
+
+While the ghcr image package is private, give the installer a token with
+`read:packages` and it creates the pull secret for you:
+
+```bash
+ergoz install --ghcr-token "$(gh auth token)"
+```
+
 ## Run it from source
 
 ```bash

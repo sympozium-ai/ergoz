@@ -1,0 +1,8 @@
+apiVersion: v2
+name: ergoz
+description: Vendor-neutral accelerator power telemetry for Kubernetes — consumer hardware first
+type: application
+# Both fields are bumped by release-please (see release-please-config.json).
+version: 0.1.0
+appVersion: "0.1.0"
+home: https://github.com/sympozium-ai/ergoz
