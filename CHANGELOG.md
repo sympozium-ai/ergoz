@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.2.0](https://github.com/sympozium-ai/ergoz/compare/v0.1.3...v0.2.0) (2026-07-13)
+
+
+### ⚠ BREAKING CHANGES
+
+* /api/v1/fleet drops the per-device energyJoules field and the two *_energy_joules_total metrics are gone. Consumers wanting watt-hours integrate powerWatts × time downstream.
+
+### Features
+
+* point-in-time watts only — drop energy accumulation, add stale-marking ([b1fb83d](https://github.com/sympozium-ai/ergoz/commit/b1fb83db4edfcf83dea29738134319bb8ebf151e))
+
 ## [0.1.3](https://github.com/sympozium-ai/ergoz/compare/v0.1.2...v0.1.3) (2026-07-13)
 
 
