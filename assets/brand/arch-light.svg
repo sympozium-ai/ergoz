@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 460" width="960" height="460" role="img" aria-label="Ergoz architecture: per-node agents scraped by one fleet collector">
+<rect x="16" y="16" width="928" height="428" fill="none" stroke="#c9c3b6" stroke-width="1"/>
+<polyline points="38,16 16,16 16,38" fill="none" stroke="#1a1a18" stroke-width="2"/>
+<polyline points="922,16 944,16 944,38" fill="none" stroke="#1a1a18" stroke-width="2"/>
+<polyline points="38,444 16,444 16,422" fill="none" stroke="#1a1a18" stroke-width="2"/>
+<polyline points="922,444 944,444 944,422" fill="none" stroke="#1a1a18" stroke-width="2"/>
+<text x="34" y="40" font-family="ui-monospace, 'JetBrains Mono', 'Cascadia Mono', Menlo, monospace" font-size="11" font-weight="normal" letter-spacing="0.18em" fill="#8a8c82" text-anchor="start">ERGOZ · NODE AGENTS → FLEET COLLECTOR</text>
+<rect x="44" y="72" width="340" height="96" fill="#e9e4da" stroke="#c9c3b6" stroke-width="1.5"/>
+<text x="62" y="98" font-family="ui-monospace, 'JetBrains Mono', 'Cascadia Mono', Menlo, monospace" font-size="12" font-weight="bold" letter-spacing="0.14em" fill="#8a8c82" text-anchor="start">NODE 1</text>
+<text x="62" y="122" font-family="ui-monospace, 'JetBrains Mono', 'Cascadia Mono', Menlo, monospace" font-size="13" font-weight="bold" letter-spacing="0.06em" fill="#1a1a18" text-anchor="start">ergoz-agent  ·  DaemonSet</text>
+<text x="62" y="142" font-family="ui-monospace, 'JetBrains Mono', 'Cascadia Mono', Menlo, monospace" font-size="11" font-weight="normal" letter-spacing="0.06em" fill="#8a8c82" text-anchor="start">probe → sample → Σ W·Δt</text>
+<rect x="288" y="106" width="16" height="16" fill="#1a1a18"/>
+<rect x="314" y="106" width="16" height="16" fill="#1a1a18"/>
+<rect x="340" y="106" width="16" height="16" fill="#c4532a"/>
+<text x="288" y="154" font-family="ui-monospace, 'JetBrains Mono', 'Cascadia Mono', Menlo, monospace" font-size="10" font-weight="normal" letter-spacing="0.06em" fill="#8a8c82" text-anchor="start">:9743/metrics</text>
+<rect x="44" y="190" width="340" height="96" fill="#e9e4da" stroke="#c9c3b6" stroke-width="1.5"/>
+<text x="62" y="216" font-family="ui-monospace, 'JetBrains Mono', 'Cascadia Mono', Menlo, monospace" font-size="12" font-weight="bold" letter-spacing="0.14em" fill="#8a8c82" text-anchor="start">NODE 2</text>
+<text x="62" y="240" font-family="ui-monospace, 'JetBrains Mono', 'Cascadia Mono', Menlo, monospace" font-size="13" font-weight="bold" letter-spacing="0.06em" fill="#1a1a18" text-anchor="start">ergoz-agent  ·  DaemonSet</text>
+<text x="62" y="260" font-family="ui-monospace, 'JetBrains Mono', 'Cascadia Mono', Menlo, monospace" font-size="11" font-weight="normal" letter-spacing="0.06em" fill="#8a8c82" text-anchor="start">probe → sample → Σ W·Δt</text>
+<rect x="288" y="224" width="16" height="16" fill="#1a1a18"/>
+<rect x="314" y="224" width="16" height="16" fill="#1a1a18"/>
+<rect x="340" y="224" width="16" height="16" fill="#c4532a"/>
+<text x="288" y="272" font-family="ui-monospace, 'JetBrains Mono', 'Cascadia Mono', Menlo, monospace" font-size="10" font-weight="normal" letter-spacing="0.06em" fill="#8a8c82" text-anchor="start">:9743/metrics</text>
+<rect x="44" y="308" width="340" height="96" fill="#e9e4da" stroke="#c9c3b6" stroke-width="1.5"/>
+<text x="62" y="334" font-family="ui-monospace, 'JetBrains Mono', 'Cascadia Mono', Menlo, monospace" font-size="12" font-weight="bold" letter-spacing="0.14em" fill="#8a8c82" text-anchor="start">NODE 3</text>
+<text x="62" y="358" font-family="ui-monospace, 'JetBrains Mono', 'Cascadia Mono', Menlo, monospace" font-size="13" font-weight="bold" letter-spacing="0.06em" fill="#1a1a18" text-anchor="start">ergoz-agent  ·  DaemonSet</text>
+<text x="62" y="378" font-family="ui-monospace, 'JetBrains Mono', 'Cascadia Mono', Menlo, monospace" font-size="11" font-weight="normal" letter-spacing="0.06em" fill="#8a8c82" text-anchor="start">probe → sample → Σ W·Δt</text>
+<rect x="288" y="342" width="16" height="16" fill="#1a1a18"/>
+<rect x="314" y="342" width="16" height="16" fill="#1a1a18"/>
+<rect x="340" y="342" width="16" height="16" fill="#c4532a"/>
+<text x="288" y="390" font-family="ui-monospace, 'JetBrains Mono', 'Cascadia Mono', Menlo, monospace" font-size="10" font-weight="normal" letter-spacing="0.06em" fill="#8a8c82" text-anchor="start">:9743/metrics</text>
+<text x="284" y="404" font-family="ui-monospace, 'JetBrains Mono', 'Cascadia Mono', Menlo, monospace" font-size="10" font-weight="normal" letter-spacing="0.06em" fill="#1a1a18" text-anchor="start"></text>
+<rect x="620" y="112" width="296" height="236" fill="#e9e4da" stroke="#c9c3b6" stroke-width="1.5"/>
+<text x="640" y="142" font-family="ui-monospace, 'JetBrains Mono', 'Cascadia Mono', Menlo, monospace" font-size="15" font-weight="bold" letter-spacing="0.06em" fill="#1a1a18" text-anchor="start">ergoz-collector</text>
+<text x="640" y="162" font-family="ui-monospace, 'JetBrains Mono', 'Cascadia Mono', Menlo, monospace" font-size="11" font-weight="normal" letter-spacing="0.06em" fill="#8a8c82" text-anchor="start">Deployment · fleet cache</text>
+<rect x="640" y="186" width="256" height="44" fill="none" stroke="#c9c3b6" stroke-width="1"/>
+<text x="654" y="206" font-family="ui-monospace, 'JetBrains Mono', 'Cascadia Mono', Menlo, monospace" font-size="12" font-weight="bold" letter-spacing="0.06em" fill="#1a1a18" text-anchor="start">:9744/metrics</text>
+<text x="654" y="222" font-family="ui-monospace, 'JetBrains Mono', 'Cascadia Mono', Menlo, monospace" font-size="10" font-weight="normal" letter-spacing="0.06em" fill="#8a8c82" text-anchor="start">merged Prometheus</text>
+<rect x="640" y="242" width="256" height="44" fill="none" stroke="#c4532a" stroke-width="1.5"/>
+<text x="654" y="262" font-family="ui-monospace, 'JetBrains Mono', 'Cascadia Mono', Menlo, monospace" font-size="12" font-weight="bold" letter-spacing="0.06em" fill="#c4532a" text-anchor="start">:9744/api/v1/fleet</text>
+<text x="654" y="278" font-family="ui-monospace, 'JetBrains Mono', 'Cascadia Mono', Menlo, monospace" font-size="10" font-weight="normal" letter-spacing="0.06em" fill="#8a8c82" text-anchor="start">JSON → Sympozium</text>
+<text x="640" y="318" font-family="ui-monospace, 'JetBrains Mono', 'Cascadia Mono', Menlo, monospace" font-size="10" font-weight="normal" letter-spacing="0.1em" fill="#8a8c82" text-anchor="start">no CRDs · no RBAC · non-root</text>
+<polyline points="384,120 590,120 590,230" fill="none" stroke="#c4532a" stroke-width="2.5"/>
+<polyline points="384,238 590,238 590,230" fill="none" stroke="#c4532a" stroke-width="2.5"/>
+<polyline points="384,356 590,356 590,230" fill="none" stroke="#c4532a" stroke-width="2.5"/>
+<line x1="590" y1="230" x2="620" y2="230" stroke="#c4532a" stroke-width="3"/>
+<polygon points="614,225 614,235 620,230" fill="#c4532a"/>
+<text x="470" y="60" font-family="ui-monospace, 'JetBrains Mono', 'Cascadia Mono', Menlo, monospace" font-size="10" font-weight="normal" letter-spacing="0.12em" fill="#c4532a" text-anchor="middle">SCRAPE / 5s</text>
+<text x="470" y="74" font-family="ui-monospace, 'JetBrains Mono', 'Cascadia Mono', Menlo, monospace" font-size="9" font-weight="normal" letter-spacing="0.1em" fill="#8a8c82" text-anchor="middle">HEADLESS-SVC DNS</text>
+</svg>

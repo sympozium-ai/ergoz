@@ -175,20 +175,19 @@ integrates at sample resolution regardless of how rarely you scrape.
 
 ## Architecture
 
-```
-┌────────── node ──────────┐
-│ ergoz-agent (DaemonSet)  │   reads /sys (hostPath, ro):
-│  probe walk → devices    │   - amdgpu hwmon power1_input (µW)
-│  sample loop (1s)        │   - amdgpu gpu_metrics v3.0 blob (validated decode)
-│  Σ W·Δt energy integr.   │   - power/runtime_status (suspend gate)
-│  :9743/metrics           │
-└──────────┬───────────────┘
-           │ scraped via headless-Service DNS
-┌──────────▼───────────────┐
-│ ergoz-collector (Deploy) │   :9744/metrics      merged fleet Prometheus view
-│  fleet cache             │   :9744/api/v1/fleet JSON for Sympozium etc.
-└──────────────────────────┘
-```
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/brand/arch-dark.svg">
+    <img src="assets/brand/arch-light.svg" alt="Ergoz architecture: per-node ergoz-agent DaemonSet pods, each serving :9743/metrics, scraped every 5s over headless-Service DNS by a single ergoz-collector that serves merged Prometheus metrics and a JSON fleet API on :9744" width="820">
+  </picture>
+</p>
+
+Each **agent** walks the node's devices once at startup, then samples on a
+loop: amdgpu hwmon `power1_input` (µW), the amdgpu `gpu_metrics` v3.0 blob
+(validated decode), NVIDIA via NVML, and `power/runtime_status` as the suspend
+gate — integrating energy as Σ&nbsp;W·Δt and serving `:9743/metrics`. The
+**collector** scrapes every agent over headless-Service DNS and re-serves the
+fleet as merged Prometheus metrics plus the JSON API on `:9744`.
 
 Device identity comes from
 [`llmfit-dra/pkg/probe`](https://github.com/sympozium-ai/llmfit-dra) — one
