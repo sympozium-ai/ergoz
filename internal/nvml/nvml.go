@@ -5,9 +5,7 @@
 // queries used here are not datacenter-gated.
 //
 // The binding is deliberately tiny: init/shutdown, handle-by-PCI-address,
-// instantaneous power (mW), and the native cumulative energy counter (mJ,
-// Volta+; NOT_SUPPORTED on some consumer SKUs — callers must treat that as
-// absence, never zero).
+// and instantaneous power (mW) — Ergoz reports current watts, nothing else.
 package nvml
 
 import (
@@ -32,9 +30,6 @@ var ErrNotSupported = errors.New("not supported by device/driver")
 type Device interface {
 	// PowerMilliwatts is the current board power draw (±5% per NVML docs).
 	PowerMilliwatts() (uint32, error)
-	// TotalEnergyMillijoules is the cumulative energy counter since the
-	// driver was last loaded (Volta+; ErrNotSupported otherwise).
-	TotalEnergyMillijoules() (uint64, error)
 }
 
 // Library is the loaded NVML runtime.
@@ -50,7 +45,6 @@ type realLib struct {
 	shutdown    func() int32
 	handleByPCI func(string, *uintptr) int32
 	powerUsage  func(uintptr, *uint32) int32
-	totalEnergy func(uintptr, *uint64) int32
 }
 
 type realDevice struct {
@@ -94,7 +88,6 @@ func Load() (Library, error) {
 		register(&l.shutdown, handle, "nvmlShutdown")
 		register(&l.handleByPCI, handle, "nvmlDeviceGetHandleByPciBusId_v2")
 		register(&l.powerUsage, handle, "nvmlDeviceGetPowerUsage")
-		register(&l.totalEnergy, handle, "nvmlDeviceGetTotalEnergyConsumption")
 		if rc := initFn(); rc != retSuccess {
 			return fmt.Errorf("nvmlInit_v2 failed: code %d", rc)
 		}
@@ -128,17 +121,5 @@ func (d *realDevice) PowerMilliwatts() (uint32, error) {
 		return 0, ErrNotSupported
 	default:
 		return 0, fmt.Errorf("nvmlDeviceGetPowerUsage: code %d", rc)
-	}
-}
-
-func (d *realDevice) TotalEnergyMillijoules() (uint64, error) {
-	var mj uint64
-	switch rc := d.lib.totalEnergy(d.handle, &mj); rc {
-	case retSuccess:
-		return mj, nil
-	case retNotSupported:
-		return 0, ErrNotSupported
-	default:
-		return 0, fmt.Errorf("nvmlDeviceGetTotalEnergyConsumption: code %d", rc)
 	}
 }

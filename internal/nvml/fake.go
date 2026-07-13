@@ -1,17 +1,14 @@
 package nvml
 
-// Fake is an in-memory Library for tests and simulations. Power/energy are
-// settable; energy accrues only through SetEnergy so tests control time.
+// Fake is an in-memory Library for tests and simulations.
 type Fake struct {
 	Devices map[string]*FakeDevice // PCI address → device
 }
 
-// FakeDevice implements Device with fixed values.
+// FakeDevice implements Device with a fixed power reading.
 type FakeDevice struct {
-	MW        uint32
-	MJ        uint64
-	EnergyErr error // e.g. ErrNotSupported for pre-Volta/consumer SKUs
-	PowerErr  error
+	MW       uint32
+	PowerErr error
 }
 
 func (f *Fake) DeviceByPCI(addr string) (Device, error) {
@@ -29,11 +26,4 @@ func (d *FakeDevice) PowerMilliwatts() (uint32, error) {
 		return 0, d.PowerErr
 	}
 	return d.MW, nil
-}
-
-func (d *FakeDevice) TotalEnergyMillijoules() (uint64, error) {
-	if d.EnergyErr != nil {
-		return 0, d.EnergyErr
-	}
-	return d.MJ, nil
 }

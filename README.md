@@ -112,9 +112,11 @@ Removes the Helm release and the namespace. Installs made by the pre-Helm CLI
 |---|---|
 | `ergoz_accel_power_watts{node,kind,vendor_id,device_id,pci,driver}` | Instantaneous board/socket power (hwmon) |
 | `ergoz_accel_component_power_watts{...,component}` | Decomposed power where the ASIC exposes it: `socket`, `gfx`, `npu`, `cpu_cores`. Fields failing per-ASIC sanity validation are **absent, never zero** |
-| `ergoz_accel_energy_joules_total{...}` | Software-integrated energy (Σ W·Δt) since agent start |
-| `ergoz_accel_hw_energy_joules_total{...}` | Native hardware energy counter since driver load, where supported (NVML Volta+). Absent when unsupported |
 | `ergoz_accel_runtime_suspended{...}` | 1 = device runtime-PM suspended; power reported as synthetic 0 W rather than waking it (for NVIDIA this gate runs **before** any NVML call — a query would wake an RTD3-suspended GPU) |
+
+Ergoz reports **current power draw**, point-in-time on every scrape — it does
+not accumulate energy totals. (Watt-hours are just `powerWatts × time`;
+integrate downstream in Prometheus/your dashboard if you want them.)
 
 Names are accelerator-neutral: `kind` is a label (`gpu`, `npu`, …), so new
 device classes need no renames. The collector re-exposes every agent's
@@ -127,12 +129,16 @@ device classes need no renames. The collector re-exposes every agent's
 
 ```json
 {
-  "agentsUp": 1, "agentsTotal": 1, "totalWatts": 18.0,
+  "agentsUp": 1, "agentsTotal": 1, "totalWatts": 18.0, "staleDevices": 0,
   "devices": [{"node":"...","kind":"gpu","pci":"0000:c3:00.0",
                "powerWatts":18.0,"components":{"socket":18.4,"gfx":0.0},
-               "energyJoules":6443.4,"suspended":false}]
+               "suspended":false,"stale":false}]
 }
 ```
+
+Each device is a current reading. If an agent stops responding its devices
+stay listed with `"stale": true` (last-known value) and drop out of
+`totalWatts` — a missed scrape is visible, not a silent gap.
 
 ## Verified hardware
 

@@ -28,10 +28,9 @@ func labelsFor(node string, d probe.Device) prometheus.Labels {
 }
 
 // TestNVIDIA_SyntheticSampling drives the full sampler path for an NVIDIA
-// device against the fake NVML library: board power, software energy
-// integration between samples, and the native hardware counter.
+// device against the fake NVML library: current board power via NVML.
 func TestNVIDIA_SyntheticSampling(t *testing.T) {
-	fakeDev := &nvml.FakeDevice{MW: 123456, MJ: 5_000_000}
+	fakeDev := &nvml.FakeDevice{MW: 123456}
 	fake := &nvml.Fake{Devices: map[string]*nvml.FakeDevice{"0000:01:00.0": fakeDev}}
 
 	reg := prometheus.NewRegistry()
@@ -43,51 +42,20 @@ func TestNVIDIA_SyntheticSampling(t *testing.T) {
 	}
 	l := labelsFor("test-node", nvidiaDevice())
 
-	t0 := time.Now()
-	s.targets[0].lastSample = t0.Add(-2 * time.Second) // simulate a prior sample 2s ago
-	for _, tgt := range s.targets {
-		s.sampleOne(tgt, t0)
-	}
-
-	if got := testutil.ToFloat64(s.power.With(l)); got != 123.456 {
-		t.Fatalf("power = %v W, want 123.456", got)
-	}
-	// 123.456 W for 2 s = 246.912 J software-integrated.
-	if got := testutil.ToFloat64(s.energy.With(l)); got < 246.9 || got > 246.92 {
-		t.Fatalf("software energy = %v J, want ~246.912", got)
-	}
-	if got := testutil.ToFloat64(s.hwEnergy.With(l)); got != 5000 {
-		t.Fatalf("hw energy = %v J, want 5000 (5e6 mJ)", got)
-	}
-
-	// Counter advances → gauge follows the hardware value.
-	fakeDev.MJ = 6_234_000
-	for _, tgt := range s.targets {
-		s.sampleOne(tgt, t0.Add(time.Second))
-	}
-	if got := testutil.ToFloat64(s.hwEnergy.With(l)); got != 6234 {
-		t.Fatalf("hw energy after advance = %v J, want 6234", got)
-	}
-}
-
-// TestNVIDIA_EnergyCounterUnsupported: consumer SKUs without the Volta+
-// counter must produce NO hw-energy series — absence, never zero.
-func TestNVIDIA_EnergyCounterUnsupported(t *testing.T) {
-	fake := &nvml.Fake{Devices: map[string]*nvml.FakeDevice{
-		"0000:01:00.0": {MW: 50_000, EnergyErr: nvml.ErrNotSupported},
-	}}
-	reg := prometheus.NewRegistry()
-	s := New(reg, "test-node", time.Second, t.TempDir(), []probe.Device{nvidiaDevice()}, fake)
-
 	for _, tgt := range s.targets {
 		s.sampleOne(tgt, time.Now())
 	}
-
-	if got := testutil.CollectAndCount(s.hwEnergy); got != 0 {
-		t.Fatalf("hw energy series count = %d, want 0 for unsupported counter", got)
+	if got := testutil.ToFloat64(s.power.With(l)); got != 123.456 {
+		t.Fatalf("power = %v W, want 123.456", got)
 	}
-	if got := testutil.ToFloat64(s.power.With(labelsFor("test-node", nvidiaDevice()))); got != 50 {
-		t.Fatalf("power = %v W, want 50", got)
+
+	// Reading tracks the current value on the next sample.
+	fakeDev.MW = 90_000
+	for _, tgt := range s.targets {
+		s.sampleOne(tgt, time.Now())
+	}
+	if got := testutil.ToFloat64(s.power.With(l)); got != 90 {
+		t.Fatalf("power after change = %v W, want 90", got)
 	}
 }
 
@@ -166,8 +134,5 @@ func TestSuspend_ClearsComponentSeries(t *testing.T) {
 type panicDevice struct{}
 
 func (panicDevice) PowerMilliwatts() (uint32, error) {
-	panic("NVML queried for a runtime-suspended device — the suspend gate failed")
-}
-func (panicDevice) TotalEnergyMillijoules() (uint64, error) {
 	panic("NVML queried for a runtime-suspended device — the suspend gate failed")
 }

@@ -15,7 +15,6 @@ import (
 const stubC = `
 #include <string.h>
 typedef int nvmlReturn_t;
-static unsigned long long energy_mj = 5000000ULL;
 
 int nvmlInit_v2(void) { return 0; }
 int nvmlShutdown(void) { return 0; }
@@ -29,13 +28,6 @@ int nvmlDeviceGetHandleByPciBusId_v2(const char *id, void **handle) {
 int nvmlDeviceGetPowerUsage(void *handle, unsigned int *mw) {
     if (handle != (void *)0xE60) return 2;
     *mw = 123456; /* 123.456 W */
-    return 0;
-}
-
-int nvmlDeviceGetTotalEnergyConsumption(void *handle, unsigned long long *mj) {
-    if (handle != (void *)0xE60) return 2;
-    energy_mj += 123456ULL;
-    *mj = energy_mj;
     return 0;
 }
 `
@@ -75,15 +67,6 @@ func TestLoad_SyntheticStub(t *testing.T) {
 	mw, err := dev.PowerMilliwatts()
 	if err != nil || mw != 123456 {
 		t.Fatalf("power = %d mW, err %v; want 123456", mw, err)
-	}
-
-	e1, err := dev.TotalEnergyMillijoules()
-	if err != nil {
-		t.Fatalf("energy: %v", err)
-	}
-	e2, _ := dev.TotalEnergyMillijoules()
-	if e2-e1 != 123456 {
-		t.Fatalf("energy counter delta = %d, want 123456 (monotonic)", e2-e1)
 	}
 
 	// Wrong PCI address must fail through the real string-marshaling path.

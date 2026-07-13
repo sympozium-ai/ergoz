@@ -42,7 +42,7 @@ func DNSLister(service string, port int) AgentLister {
 	}
 }
 
-// DevicePower is one accelerator's latest reading.
+// DevicePower is one accelerator's current power reading.
 type DevicePower struct {
 	Node       string             `json:"node"`
 	Kind       string             `json:"kind"`
@@ -52,17 +52,32 @@ type DevicePower struct {
 	Driver     string             `json:"driver"`
 	PowerWatts float64            `json:"powerWatts"`
 	Components map[string]float64 `json:"components,omitempty"`
-	EnergyJ    float64            `json:"energyJoules"`
 	Suspended  bool               `json:"suspended"`
+	// Stale is true when this device's agent has not scraped successfully
+	// recently — the value is last-known, not current. Stale devices are
+	// excluded from TotalWatts.
+	Stale bool `json:"stale"`
 }
 
-// Snapshot is the fleet view served at /api/v1/fleet.
+// Snapshot is the fleet view served at /api/v1/fleet. It is a point-in-time
+// view of current power draw — no accumulated energy.
 type Snapshot struct {
-	ScrapedAt   time.Time     `json:"scrapedAt"`
-	AgentsTotal int           `json:"agentsTotal"`
-	AgentsUp    int           `json:"agentsUp"`
-	TotalWatts  float64       `json:"totalWatts"`
-	Devices     []DevicePower `json:"devices"`
+	ScrapedAt time.Time `json:"scrapedAt"`
+	// AgentsTotal is the number of agents currently discovered.
+	AgentsTotal int `json:"agentsTotal"`
+	// AgentsUp is the number that scraped successfully on the last pass.
+	AgentsUp int `json:"agentsUp"`
+	// TotalWatts sums current (non-stale) device power across the fleet.
+	TotalWatts float64 `json:"totalWatts"`
+	// StaleDevices counts devices whose reading is last-known, not current.
+	StaleDevices int           `json:"staleDevices"`
+	Devices      []DevicePower `json:"devices"`
+}
+
+// agentEntry is one agent's last-known families and when it last scraped OK.
+type agentEntry struct {
+	families map[string]*dto.MetricFamily
+	lastOK   time.Time
 }
 
 // Collector scrapes agents and serves the merged view.
@@ -73,7 +88,7 @@ type Collector struct {
 
 	mu       sync.RWMutex
 	snapshot Snapshot
-	families map[string]map[string]*dto.MetricFamily // agent → name → family
+	agents   map[string]*agentEntry // addr → last-known data
 }
 
 func New(list AgentLister, interval time.Duration) *Collector {
@@ -81,8 +96,18 @@ func New(list AgentLister, interval time.Duration) *Collector {
 		List:     list,
 		Interval: interval,
 		Client:   &http.Client{Timeout: 5 * time.Second},
-		families: map[string]map[string]*dto.MetricFamily{},
+		agents:   map[string]*agentEntry{},
 	}
+}
+
+// staleAfter is how long since an agent's last good scrape before its
+// readings are flagged stale (and, once well past it, dropped).
+func (c *Collector) staleAfter() time.Duration {
+	d := 3 * c.Interval
+	if d < 5*time.Second {
+		d = 5 * time.Second
+	}
+	return d
 }
 
 // Run scrapes on the configured cadence until ctx is done.
@@ -123,22 +148,32 @@ func (c *Collector) scrapeAll(ctx context.Context) {
 		}(a)
 	}
 
-	fresh := map[string]map[string]*dto.MetricFamily{}
 	up := 0
+	now := time.Now()
+	c.mu.Lock()
+	// Update last-known data for agents that scraped OK; agents that failed
+	// keep their prior entry (and age toward stale) rather than vanishing.
 	for range agents {
 		r := <-results
 		if r.fams != nil {
-			fresh[r.addr] = r.fams
+			c.agents[r.addr] = &agentEntry{families: r.fams, lastOK: now}
 			up++
 		}
 	}
-
-	snap := buildSnapshot(fresh)
+	// Prune agents that are neither in discovery nor seen recently — a
+	// genuinely-gone node, not a transient blip.
+	discovered := make(map[string]bool, len(agents))
+	for _, a := range agents {
+		discovered[a] = true
+	}
+	for addr, e := range c.agents {
+		if !discovered[addr] && now.Sub(e.lastOK) > c.staleAfter() {
+			delete(c.agents, addr)
+		}
+	}
+	snap := buildSnapshot(c.agents, now, c.staleAfter())
 	snap.AgentsTotal = len(agents)
 	snap.AgentsUp = up
-
-	c.mu.Lock()
-	c.families = fresh
 	c.snapshot = snap
 	c.mu.Unlock()
 }
@@ -162,8 +197,8 @@ func (c *Collector) scrapeOne(ctx context.Context, addr string) (map[string]*dto
 	return parser.TextToMetricFamilies(io.LimitReader(resp.Body, 4<<20))
 }
 
-func buildSnapshot(all map[string]map[string]*dto.MetricFamily) Snapshot {
-	snap := Snapshot{ScrapedAt: time.Now()}
+func buildSnapshot(agents map[string]*agentEntry, now time.Time, staleAfter time.Duration) Snapshot {
+	snap := Snapshot{ScrapedAt: now}
 	devices := map[string]*DevicePower{} // node/pci key
 
 	get := func(fams map[string]*dto.MetricFamily, name string, fn func(labels map[string]string, v float64)) {
@@ -179,31 +214,31 @@ func buildSnapshot(all map[string]map[string]*dto.MetricFamily) Snapshot {
 			fn(labels, m.GetGauge().GetValue())
 		}
 	}
-	dev := func(labels map[string]string) *DevicePower {
+	dev := func(labels map[string]string, stale bool) *DevicePower {
 		key := labels["node"] + "/" + labels["pci"]
 		d, ok := devices[key]
 		if !ok {
 			d = &DevicePower{
 				Node: labels["node"], Kind: labels["kind"], PCI: labels["pci"],
 				VendorID: labels["vendor_id"], DeviceID: labels["device_id"], Driver: labels["driver"],
+				Stale: stale,
 			}
 			devices[key] = d
 		}
 		return d
 	}
 
-	for _, fams := range all {
+	for _, e := range agents {
+		stale := now.Sub(e.lastOK) > staleAfter
+		fams := e.families
 		get(fams, "ergoz_accel_power_watts", func(l map[string]string, v float64) {
-			dev(l).PowerWatts = v
-		})
-		get(fams, "ergoz_accel_energy_joules_total", func(l map[string]string, v float64) {
-			dev(l).EnergyJ = v
+			dev(l, stale).PowerWatts = v
 		})
 		get(fams, "ergoz_accel_runtime_suspended", func(l map[string]string, v float64) {
-			dev(l).Suspended = v == 1
+			dev(l, stale).Suspended = v == 1
 		})
 		get(fams, "ergoz_accel_component_power_watts", func(l map[string]string, v float64) {
-			d := dev(l)
+			d := dev(l, stale)
 			if d.Components == nil {
 				d.Components = map[string]float64{}
 			}
@@ -217,8 +252,14 @@ func buildSnapshot(all map[string]map[string]*dto.MetricFamily) Snapshot {
 	}
 	sort.Strings(keys)
 	for _, k := range keys {
-		snap.Devices = append(snap.Devices, *devices[k])
-		snap.TotalWatts += devices[k].PowerWatts
+		d := devices[k]
+		snap.Devices = append(snap.Devices, *d)
+		if d.Stale {
+			snap.StaleDevices++
+		} else {
+			// Only current readings contribute to the live fleet total.
+			snap.TotalWatts += d.PowerWatts
+		}
 	}
 	return snap
 }
@@ -242,8 +283,8 @@ func (c *Collector) ServeMetrics(w http.ResponseWriter, _ *http.Request) {
 	enc := expfmt.NewEncoder(w, expfmt.NewFormat(expfmt.TypeTextPlain))
 
 	merged := map[string]*dto.MetricFamily{}
-	for _, fams := range c.families {
-		for name, fam := range fams {
+	for _, e := range c.agents {
+		for name, fam := range e.families {
 			if len(name) < 6 || name[:6] != "ergoz_" {
 				continue
 			}
