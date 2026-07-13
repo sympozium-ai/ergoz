@@ -9,6 +9,12 @@ image:
 # --ghcr-token` creates the secret and sets this automatically.
 imagePullSecrets: []
 
+nvidia:
+  # -- Host directory containing libnvidia-ml.so.1, mounted read-only into
+  # the agent when set (e.g. /usr/lib/x86_64-linux-gnu). Not needed when the
+  # NVIDIA container toolkit / device plugin injects the driver libraries.
+  libHostDir: ""
+
 agent:
   # -- Power sampling cadence. A hwmon read costs ~5 µs; 1s is cheap.
   sampleInterval: 1s

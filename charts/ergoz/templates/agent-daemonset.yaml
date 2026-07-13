@@ -33,6 +33,10 @@ spec:
               value: {{ .Values.agent.sampleInterval | quote }}
             - name: ERGOZ_LISTEN
               value: ":{{ .Values.agent.port }}"
+            {{- if .Values.nvidia.libHostDir }}
+            - name: ERGOZ_NVML_PATH
+              value: /host/nvidia/libnvidia-ml.so.1
+            {{- end }}
           ports:
             - containerPort: {{ .Values.agent.port }}
               name: metrics
@@ -40,6 +44,11 @@ spec:
             - name: sysfs
               mountPath: /host/sys
               readOnly: true
+            {{- if .Values.nvidia.libHostDir }}
+            - name: nvidia-lib
+              mountPath: /host/nvidia
+              readOnly: true
+            {{- end }}
           securityContext:
             {{- include "ergoz.securityContext" . | nindent 12 }}
           resources:
@@ -53,3 +62,9 @@ spec:
           hostPath:
             path: /sys
             type: Directory
+        {{- if .Values.nvidia.libHostDir }}
+        - name: nvidia-lib
+          hostPath:
+            path: {{ .Values.nvidia.libHostDir }}
+            type: Directory
+        {{- end }}

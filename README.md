@@ -113,7 +113,8 @@ Removes the Helm release and the namespace. Installs made by the pre-Helm CLI
 | `ergoz_accel_power_watts{node,kind,vendor_id,device_id,pci,driver}` | Instantaneous board/socket power (hwmon) |
 | `ergoz_accel_component_power_watts{...,component}` | Decomposed power where the ASIC exposes it: `socket`, `gfx`, `npu`, `cpu_cores`. Fields failing per-ASIC sanity validation are **absent, never zero** |
 | `ergoz_accel_energy_joules_total{...}` | Software-integrated energy (Σ W·Δt) since agent start |
-| `ergoz_accel_runtime_suspended{...}` | 1 = device runtime-PM suspended; power reported as synthetic 0 W rather than waking it |
+| `ergoz_accel_hw_energy_joules_total{...}` | Native hardware energy counter since driver load, where supported (NVML Volta+). Absent when unsupported |
+| `ergoz_accel_runtime_suspended{...}` | 1 = device runtime-PM suspended; power reported as synthetic 0 W rather than waking it (for NVIDIA this gate runs **before** any NVML call — a query would wake an RTD3-suspended GPU) |
 
 Names are accelerator-neutral: `kind` is a label (`gpu`, `npu`, …), so new
 device classes need no renames. The collector re-exposes every agent's
@@ -142,7 +143,7 @@ Empirical, not aspirational:
 | AMD Strix Halo APU (`amdgpu`) | hwmon `power1_input` + `gpu_metrics` v3.0 | ✅ live: socket/gfx/per-core decomposition agrees with hwmon within 0.2 W |
 | AMD XDNA NPU (`amdxdna`) | runtime_status | ✅ live: reported suspended, synthetic 0 W |
 | Intel Lunar Lake iGPU (`xe`) | — | ✅ correctly reported unmeasurable (no hwmon power exists; a known kernel gap) |
-| NVIDIA GeForce | NVML (`libnvidia-ml.so.1`, dlopen) | 🔜 Phase 1 |
+| NVIDIA GeForce | NVML via runtime dlopen (purego — no cgo, static build preserved) | 🧪 synthetic: real dlopen path validated against a compiled stub `libnvidia-ml.so.1` (power, native energy counter, RTD3 suspend gate, string marshaling); hardware validation pending |
 | Intel Arc dGPU | xe/i915 `energy1_input` (µJ counter) | 🔜 Phase 1 |
 | CPU package (RAPL) | `/sys/class/powercap` (root-only) | 🔜 Phase 2, opt-in privileged mode |
 
@@ -159,6 +160,7 @@ Helm values (`charts/ergoz/values.yaml`):
 |---|---|---|
 | `image.repository` / `image.tag` | ghcr, `v{appVersion}` | Container image; `--image-tag` sets this |
 | `imagePullSecrets` | `[]` | `--ghcr-token` sets `[{name: ghcr-pull}]` |
+| `nvidia.libHostDir` | `""` | Host dir with `libnvidia-ml.so.1`, mounted ro when set (unneeded with the NVIDIA container toolkit) |
 | `agent.sampleInterval` | `1s` | Power sampling cadence |
 | `collector.scrapeInterval` | `5s` | Agent scrape cadence |
 | `agent.resources` / `collector.resources` | small | Pod resources |
@@ -219,9 +221,11 @@ assets for an existing tag.
 
 ## Roadmap
 
-- **Phase 1**: NVIDIA GeForce via NVML (dlopen, no cgo hard-dep); Intel Arc
-  energy counters (ΔµJ/Δt with wrap handling); per-ASIC `gpu_metrics` v1/v2
-  tables for AMD dGPUs and older APUs.
+- **Phase 1**: ~~NVIDIA GeForce via NVML~~ shipped (synthetic-validated; the
+  remaining gate measurements need real hardware — NVML call latency on GSP
+  drivers, RTD3 behavior, energy-counter support per SKU). Still open: Intel
+  Arc energy counters (ΔµJ/Δt with wrap handling); per-ASIC `gpu_metrics`
+  v1/v2 tables for AMD dGPUs and older APUs.
 - **Phase 2**: opt-in privileged mode for RAPL CPU package power; OTLP push
   exporter; device→pod attribution via kubelet pod-resources (consumed by
   llmfit-dra/Sympozium — Ergoz itself stays observability-only).

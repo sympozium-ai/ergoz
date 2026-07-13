@@ -16,6 +16,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
+	"github.com/sympozium-ai/ergoz/internal/nvml"
 	"github.com/sympozium-ai/ergoz/internal/sampler"
 	"github.com/sympozium-ai/llmfit-dra/pkg/probe"
 )
@@ -32,9 +33,27 @@ func main() {
 		log.Fatalf("device walk failed: %v", err)
 	}
 
+	// dlopen NVML only when an NVIDIA device under the proprietary driver
+	// is present — it is the only power source for those (no sysfs power
+	// exists), and absence is a warning, not an error.
+	var nvmlLib nvml.Library
+	for _, d := range devices {
+		if d.PCIVendor == "10de" && d.Driver == "nvidia" {
+			lib, nverr := nvml.Load()
+			if nverr != nil {
+				log.Printf("NVIDIA device %s present but NVML unavailable: %v", d.PCIAddr, nverr)
+				break
+			}
+			nvmlLib = lib
+			defer lib.Shutdown()
+			log.Printf("NVML loaded for NVIDIA power sampling")
+			break
+		}
+	}
+
 	reg := prometheus.NewRegistry()
 	reg.MustRegister(collectors.NewGoCollector())
-	s := sampler.New(reg, node, interval, sysRoot, devices)
+	s := sampler.New(reg, node, interval, sysRoot, devices, nvmlLib)
 
 	for _, t := range s.Targets() {
 		log.Printf("measuring %s %s (vendor %s device %s driver %s): power=%q gpu_metrics=%q",

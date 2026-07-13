@@ -8,6 +8,7 @@ package sampler
 
 import (
 	"context"
+	"errors"
 	"log"
 	"time"
 
@@ -15,17 +16,28 @@ import (
 
 	"github.com/sympozium-ai/ergoz/internal/gpumetrics"
 	"github.com/sympozium-ai/ergoz/internal/hwmon"
+	"github.com/sympozium-ai/ergoz/internal/nvml"
 	"github.com/sympozium-ai/llmfit-dra/pkg/probe"
 )
+
+// pciVendorNVIDIA is the PCI vendor id for NVIDIA (no 0x prefix, per probe).
+const pciVendorNVIDIA = "10de"
 
 // Target is one accelerator under measurement.
 type Target struct {
 	Device probe.Device
 	Sensor hwmon.Sensor
+	// NVMLDev is non-nil for NVIDIA devices when libnvidia-ml resolved.
+	// The proprietary driver exposes no sysfs power, so NVML is the only
+	// source; the runtime-PM suspend gate still comes from sysfs and is
+	// checked BEFORE any NVML call — NVML queries wake an RTD3-suspended
+	// GPU, which would add the idle watts this tool exists to observe.
+	NVMLDev nvml.Device
 
 	energyJoules  float64
 	lastSample    time.Time
 	warnedNoPower bool
+	warnedNoHWEng bool
 }
 
 // Sampler owns the loop and the metric vectors.
@@ -37,13 +49,14 @@ type Sampler struct {
 	power     *prometheus.GaugeVec
 	component *prometheus.GaugeVec
 	energy    *prometheus.GaugeVec
+	hwEnergy  *prometheus.GaugeVec
 	suspended *prometheus.GaugeVec
 	scrapeDur prometheus.Gauge
 }
 
 // New builds a sampler over the given devices. Devices without any sensor
 // still get a suspended/presence series so absence is visible, not silent.
-func New(reg prometheus.Registerer, node string, interval time.Duration, sysRoot string, devices []probe.Device) *Sampler {
+func New(reg prometheus.Registerer, node string, interval time.Duration, sysRoot string, devices []probe.Device, nvmlLib nvml.Library) *Sampler {
 	labels := []string{"node", "kind", "vendor_id", "device_id", "pci", "driver"}
 	s := &Sampler{
 		node:     node,
@@ -60,6 +73,10 @@ func New(reg prometheus.Registerer, node string, interval time.Duration, sysRoot
 			Name: "ergoz_accel_energy_joules_total",
 			Help: "Software-integrated energy (sum of watts x seconds) since agent start. Counter semantics; resets on agent restart.",
 		}, labels),
+		hwEnergy: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "ergoz_accel_hw_energy_joules_total",
+			Help: "Native hardware cumulative energy counter (joules) since driver load, where the device supports one (NVML Volta+). Absent when unsupported — never zero.",
+		}, labels),
 		suspended: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "ergoz_accel_runtime_suspended",
 			Help: "1 when the device is runtime-PM suspended (power reported as synthetic 0 W rather than waking the device), else 0.",
@@ -69,16 +86,25 @@ func New(reg prometheus.Registerer, node string, interval time.Duration, sysRoot
 			Help: "Wall time of the last full sampling pass.",
 		}),
 	}
-	reg.MustRegister(s.power, s.component, s.energy, s.suspended, s.scrapeDur)
+	reg.MustRegister(s.power, s.component, s.energy, s.hwEnergy, s.suspended, s.scrapeDur)
 
 	for _, d := range devices {
 		if d.Kind != probe.KindGPU && d.Kind != probe.KindNPU {
 			continue
 		}
-		s.targets = append(s.targets, &Target{
+		t := &Target{
 			Device: d,
 			Sensor: hwmon.Discover(sysRoot, d.PCIAddr),
-		})
+		}
+		if d.PCIVendor == pciVendorNVIDIA && d.Driver == "nvidia" && nvmlLib != nil {
+			dev, err := nvmlLib.DeviceByPCI(d.PCIAddr)
+			if err != nil {
+				log.Printf("nvml: could not resolve %s: %v — device stays present without a power series", d.PCIAddr, err)
+			} else {
+				t.NVMLDev = dev
+			}
+		}
+		s.targets = append(s.targets, t)
 	}
 	return s
 }
@@ -129,6 +155,11 @@ func (s *Sampler) sampleOne(t *Target, now time.Time) {
 	}
 	s.suspended.With(l).Set(0)
 
+	if t.NVMLDev != nil {
+		s.sampleNVML(t, l, now)
+		return
+	}
+
 	watts, err := t.Sensor.PowerWatts()
 	if err == nil {
 		s.power.With(l).Set(watts)
@@ -172,4 +203,44 @@ func (s *Sampler) sampleOne(t *Target, now time.Time) {
 	setComponent("gfx", m.GfxPowerW)
 	setComponent("npu", m.NPUPowerW)
 	setComponent("cpu_cores", m.CoreSumPowerW)
+}
+
+// sampleNVML reads an NVIDIA device. Board power feeds the same
+// software-integrated energy as sysfs devices; the native cumulative
+// counter (Volta+) is exported additionally when supported.
+func (s *Sampler) sampleNVML(t *Target, l prometheus.Labels, now time.Time) {
+	mw, err := t.NVMLDev.PowerMilliwatts()
+	if err != nil {
+		if !t.warnedNoPower {
+			log.Printf("sample %s: nvml power failed (%v)", t.Device.PCIAddr, err)
+			t.warnedNoPower = true
+		}
+		t.lastSample = now
+		return
+	}
+	watts := float64(mw) / 1000.0
+	s.power.With(l).Set(watts)
+	if !t.lastSample.IsZero() {
+		t.energyJoules += watts * now.Sub(t.lastSample).Seconds()
+	}
+	s.energy.With(l).Set(t.energyJoules)
+	t.lastSample = now
+
+	mj, err := t.NVMLDev.TotalEnergyMillijoules()
+	switch {
+	case err == nil:
+		s.hwEnergy.With(l).Set(float64(mj) / 1000.0)
+	case errors.Is(err, nvml.ErrNotSupported):
+		// Absence, never zero: some consumer SKUs lack the counter.
+		s.hwEnergy.Delete(l)
+		if !t.warnedNoHWEng {
+			log.Printf("sample %s: native energy counter unsupported — software integration only", t.Device.PCIAddr)
+			t.warnedNoHWEng = true
+		}
+	default:
+		if !t.warnedNoHWEng {
+			log.Printf("sample %s: nvml energy counter failed (%v)", t.Device.PCIAddr, err)
+			t.warnedNoHWEng = true
+		}
+	}
 }
