@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.2](https://github.com/sympozium-ai/ergoz/compare/v0.1.1...v0.1.2) (2026-07-13)
+
+
+### Features
+
+* **brand:** sibling-stack diagram (sympozium / llmfit-dra / ergoz) ([3ca9377](https://github.com/sympozium-ai/ergoz/commit/3ca9377609a74aeadafacbd530c96591ac1f5a49))
+* Phase 1 — NVIDIA GeForce power via NVML (runtime dlopen, no cgo) ([7565ba9](https://github.com/sympozium-ai/ergoz/commit/7565ba95a87fda785a83462175e20cebf3a47bf5))
+
 ## [0.1.1](https://github.com/sympozium-ai/ergoz/compare/v0.1.0...v0.1.1) (2026-07-13)
 
 
