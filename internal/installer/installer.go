@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"strings"
 	"time"
 
 	"helm.sh/helm/v3/pkg/action"
@@ -265,9 +266,45 @@ func WaitReady(ctx context.Context, restCfg *rest.Config, timeout time.Duration)
 			dep.Status.ReadyReplicas == *dep.Spec.Replicas {
 			return nil
 		}
+		// Fail fast with the actual reason rather than waiting out the full
+		// timeout on an error that won't resolve itself (e.g. a private
+		// image with no pull secret).
+		if reason := blockingPodReason(ctx, cs); reason != "" {
+			return fmt.Errorf("components not starting: %s", reason)
+		}
 		time.Sleep(2 * time.Second)
 	}
 	return fmt.Errorf("components not ready after %s — check: kubectl -n %s get pods", timeout, Namespace)
+}
+
+// blockingPodReason returns a human-readable cause when a pod is stuck in a
+// state that won't self-heal (image pull, crash loop), or "" otherwise.
+func blockingPodReason(ctx context.Context, cs kubernetes.Interface) string {
+	pods, err := cs.CoreV1().Pods(Namespace).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return ""
+	}
+	for _, p := range pods.Items {
+		for _, cs := range p.Status.ContainerStatuses {
+			w := cs.State.Waiting
+			if w == nil {
+				continue
+			}
+			switch w.Reason {
+			case "ImagePullBackOff", "ErrImagePull":
+				hint := ""
+				if strings.Contains(w.Message, "401") || strings.Contains(w.Message, "denied") {
+					hint = "\n  The ergoz image is in a private registry. Re-run with:" +
+						"\n    ergoz install --ghcr-token \"$(gh auth token)\"" +
+						"\n  or make the ghcr package public."
+				}
+				return fmt.Sprintf("cannot pull the ergoz image (%s).%s", w.Reason, hint)
+			case "CrashLoopBackOff":
+				return fmt.Sprintf("pod %s is crash-looping (%s) — check: kubectl -n %s logs %s", p.Name, w.Reason, Namespace, p.Name)
+			}
+		}
+	}
+	return ""
 }
 
 // CollectorFleet fetches the collector's /api/v1/fleet JSON through the

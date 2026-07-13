@@ -136,7 +136,10 @@ jobs:
           context: .
           file: images/Dockerfile
           push: true
-          platforms: linux/amd64,linux/arm64
+          # amd64 only: arm64 builds under QEMU emulation and stalls the
+          # release for 30+ min. Add linux/arm64 back with a native arm64
+          # runner if arm64 clusters ever need it.
+          platforms: linux/amd64
           tags: |
             ghcr.io/sympozium-ai/ergoz:${{ env.TAG }}
             ghcr.io/sympozium-ai/ergoz:latest
