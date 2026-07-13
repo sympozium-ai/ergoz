@@ -27,12 +27,45 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
-  # CLI binaries + packaged Helm chart attached to the release — these are
-  # what install.sh / `gh release download` fetch.
-  cli-assets:
+  # Quality gate for releases: rulesets are unavailable on this private
+  # repo tier, so the release pipeline itself refuses to publish artifacts
+  # from a commit whose CI checks are not green.
+  await-ci:
     needs: release-please
     if: |
       always() && (
+        needs.release-please.outputs.releases_created == 'true' ||
+        github.event_name == 'workflow_dispatch'
+      )
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for CI checks on this commit
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          for i in $(seq 1 60); do
+            json=$(gh api "repos/${{ github.repository }}/commits/${{ github.sha }}/check-runs?per_page=100")
+            ok=true
+            for check in go staticcheck helm image; do
+              state=$(echo "$json" | jq -r --arg n "$check" '[.check_runs[] | select(.name==$n)] | last | .conclusion // "pending"')
+              echo "  $check: $state"
+              [ "$state" = "success" ] || ok=false
+              if [ "$state" = "failure" ] || [ "$state" = "cancelled" ]; then
+                echo "::error::required check '$check' concluded '$state' — refusing to release"; exit 1
+              fi
+            done
+            $ok && echo "all required checks green" && exit 0
+            sleep 20
+          done
+          echo "::error::timed out waiting for CI checks"; exit 1
+
+  # CLI binaries + packaged Helm chart attached to the release — these are
+  # what install.sh / `gh release download` fetch.
+  cli-assets:
+    needs: [release-please, await-ci]
+    if: |
+      always() && needs.await-ci.result == 'success' && (
         needs.release-please.outputs.releases_created == 'true' ||
         github.event_name == 'workflow_dispatch'
       )
@@ -69,9 +102,9 @@ jobs:
 
   # Container image to ghcr — what the chart's default image reference pulls.
   image:
-    needs: release-please
+    needs: [release-please, await-ci]
     if: |
-      always() && (
+      always() && needs.await-ci.result == 'success' && (
         needs.release-please.outputs.releases_created == 'true' ||
         github.event_name == 'workflow_dispatch'
       )
