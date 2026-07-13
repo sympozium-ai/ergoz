@@ -20,7 +20,7 @@ First consumer: [Sympozium](https://github.com/sympozium-ai/sympozium)
 
 ## Quick links
 
-| 🚀 Get started | 🔧 Operate | 📖 Reference | 🧭 Project |
+| Get started | Operate | Reference | Project |
 |---|---|---|---|
 | [Install the CLI](#install-the-cli) | [`ergoz status`](#cli) | [Metrics](#metrics) | [Architecture](#architecture) |
 | [Deploy to a cluster](#deploy-to-a-cluster) | [Upgrade](#upgrade) | [Fleet JSON API](#fleet-json-api) | [Security notes](#security-notes) |
@@ -146,12 +146,12 @@ Empirical, not aspirational:
 
 | Hardware | Source | Status |
 |---|---|---|
-| AMD Strix Halo APU (`amdgpu`) | hwmon `power1_input` + `gpu_metrics` v3.0 | ✅ live: socket/gfx/per-core decomposition agrees with hwmon within 0.2 W |
-| AMD XDNA NPU (`amdxdna`) | runtime_status | ✅ live: reported suspended, synthetic 0 W |
-| Intel Lunar Lake iGPU (`xe`) | — | ✅ correctly reported unmeasurable (no hwmon power exists; a known kernel gap) |
-| NVIDIA GeForce | NVML via runtime dlopen (purego — no cgo, static build preserved) | 🧪 synthetic: real dlopen path validated against a compiled stub `libnvidia-ml.so.1` (power, native energy counter, RTD3 suspend gate, string marshaling); hardware validation pending |
-| Intel Arc dGPU | xe/i915 `energy1_input` (µJ counter) | 🔜 Phase 1 |
-| CPU package (RAPL) | `/sys/class/powercap` (root-only) | 🔜 Phase 2, opt-in privileged mode |
+| AMD Strix Halo APU (`amdgpu`) | hwmon `power1_input` + `gpu_metrics` v3.0 | Live: socket/gfx/per-core decomposition agrees with hwmon within 0.2 W |
+| AMD XDNA NPU (`amdxdna`) | runtime_status | Live: reported suspended, synthetic 0 W |
+| Intel Lunar Lake iGPU (`xe`) | — | Live: correctly reported unmeasurable (no hwmon power exists; a known kernel gap) |
+| NVIDIA GeForce | NVML via runtime dlopen (purego — no cgo, static build preserved) | Synthetic: real dlopen path validated against a compiled stub `libnvidia-ml.so.1` (power, RTD3 suspend gate, string marshaling); hardware validation pending |
+| Intel Arc dGPU | xe/i915 `energy1_input` (µJ counter) | Planned (Phase 1) |
+| CPU package (RAPL) | `/sys/class/powercap` (root-only) | Planned (Phase 2, opt-in privileged mode) |
 
 The `gpu_metrics` parser trusts only fields validated on real silicon: 0xFFFF
 sentinels are dropped, `average_all_core_power` is recomputed from the
