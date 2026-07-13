@@ -38,6 +38,11 @@ jobs:
         github.event_name == 'workflow_dispatch'
       )
     runs-on: ubuntu-latest
+    # Workflow-level permissions set every unlisted scope to none, so this
+    # job must re-grant read access to query CI workflow runs.
+    permissions:
+      actions: read
+      contents: read
     steps:
       - name: Wait for CI to pass on this commit
         env:
