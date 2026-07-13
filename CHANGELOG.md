@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.3](https://github.com/sympozium-ai/ergoz/compare/v0.1.2...v0.1.3) (2026-07-13)
+
+
+### Bug Fixes
+
+* agent image now runs; enforce security claims; vuln gate ([4deaa28](https://github.com/sympozium-ai/ergoz/commit/4deaa28d5ad4565c7c6e1c823ffe53f068271bce))
+
 ## [0.1.2](https://github.com/sympozium-ai/ergoz/compare/v0.1.1...v0.1.2) (2026-07-13)
 
 
