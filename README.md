@@ -161,7 +161,8 @@ Helm values (`charts/ergoz/values.yaml`):
 | `image.repository` / `image.tag` | ghcr, `v{appVersion}` | Container image; `--image-tag` sets this |
 | `imagePullSecrets` | `[]` | `--ghcr-token` sets `[{name: ghcr-pull}]` |
 | `nvidia.libHostDir` | `""` | Host dir with `libnvidia-ml.so.1`, mounted ro when set (unneeded with the NVIDIA container toolkit) |
-| `agent.sampleInterval` | `1s` | Power sampling cadence |
+| `agent.sampleInterval` | `1s` | Power sampling cadence (clamped to ≥1s floor) |
+| `agent.tolerations` | `[{operator: Exists}]` | Tolerate tainted GPU nodes by default |
 | `collector.scrapeInterval` | `5s` | Agent scrape cadence |
 | `agent.resources` / `collector.resources` | small | Pod resources |
 
@@ -198,10 +199,14 @@ RBAC (nothing talks to the Kubernetes API), non-root end to end.
 
 - The agent mounts host `/sys` **read-only** and runs non-root,
   `readOnlyRootFilesystem`, all capabilities dropped, RuntimeDefault seccomp.
+- Both pods set `automountServiceAccountToken: false` — nothing talks to the
+  Kubernetes API.
 - Power telemetry is a side channel: fleet-wide watts can reveal that/when
   workloads run. Keep the collector Service cluster-internal and put RBAC or
-  network policy in front of anything that re-exports it. The default sample
-  interval (≥1 s) is a deliberate floor.
+  network policy in front of anything that re-exports it. The 1 s sample
+  interval is a floor **enforced in code** (sub-second requires the explicit
+  `ERGOZ_UNSAFE_FAST_SAMPLING=1` opt-in), so faster sampling can't be turned
+  on by a stray Helm value.
 
 ## Development
 

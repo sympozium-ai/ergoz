@@ -15,6 +15,7 @@ spec:
       labels:
         app.kubernetes.io/name: ergoz-collector
     spec:
+      automountServiceAccountToken: false
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
@@ -26,7 +27,7 @@ spec:
           command: ["/ergoz-collector"]
           env:
             - name: ERGOZ_AGENT_SERVICE
-              value: "ergoz-agent.{{ .Release.Namespace }}.svc.cluster.local"
+              value: "ergoz-agent.{{ .Release.Namespace }}.svc.cluster.local."
             - name: ERGOZ_AGENT_PORT
               value: {{ .Values.agent.port | quote }}
             - name: ERGOZ_SCRAPE_INTERVAL

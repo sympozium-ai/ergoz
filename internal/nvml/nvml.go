@@ -79,16 +79,28 @@ func Load() (Library, error) {
 		return nil, fmt.Errorf("%w: %v", ErrUnavailable, err)
 	}
 
+	// register (purego RegisterLibFunc) panics if a symbol is missing — a
+	// driver with an unexpected libnvidia-ml must degrade to "unavailable",
+	// never crash-loop the agent and take AMD/sysfs sampling down with it.
 	l := &realLib{}
-	var initFn func() int32
-	register(&initFn, handle, "nvmlInit_v2")
-	register(&l.shutdown, handle, "nvmlShutdown")
-	register(&l.handleByPCI, handle, "nvmlDeviceGetHandleByPciBusId_v2")
-	register(&l.powerUsage, handle, "nvmlDeviceGetPowerUsage")
-	register(&l.totalEnergy, handle, "nvmlDeviceGetTotalEnergyConsumption")
-
-	if rc := initFn(); rc != retSuccess {
-		return nil, fmt.Errorf("nvmlInit_v2 failed: code %d", rc)
+	if err := func() (err error) {
+		defer func() {
+			if r := recover(); r != nil {
+				err = fmt.Errorf("%w: resolving NVML symbols: %v", ErrUnavailable, r)
+			}
+		}()
+		var initFn func() int32
+		register(&initFn, handle, "nvmlInit_v2")
+		register(&l.shutdown, handle, "nvmlShutdown")
+		register(&l.handleByPCI, handle, "nvmlDeviceGetHandleByPciBusId_v2")
+		register(&l.powerUsage, handle, "nvmlDeviceGetPowerUsage")
+		register(&l.totalEnergy, handle, "nvmlDeviceGetTotalEnergyConsumption")
+		if rc := initFn(); rc != retSuccess {
+			return fmt.Errorf("nvmlInit_v2 failed: code %d", rc)
+		}
+		return nil
+	}(); err != nil {
+		return nil, err
 	}
 	return l, nil
 }

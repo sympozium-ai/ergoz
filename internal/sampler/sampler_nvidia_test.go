@@ -131,6 +131,38 @@ type panicLib struct{}
 func (panicLib) DeviceByPCI(string) (nvml.Device, error) { return panicDevice{}, nil }
 func (panicLib) Shutdown()                               {}
 
+// TestSuspend_ClearsComponentSeries: when a device goes suspended, any
+// previously-exported component series must be deleted, not frozen at their
+// last active value ("absent, never stale").
+func TestSuspend_ClearsComponentSeries(t *testing.T) {
+	sysRoot := t.TempDir()
+	reg := prometheus.NewRegistry()
+	s := New(reg, "test-node", time.Second, sysRoot, []probe.Device{nvidiaDevice()}, nil)
+	l := labelsFor("test-node", nvidiaDevice())
+
+	// Seed an active component reading directly, as a prior active pass would.
+	cl := prometheus.Labels{"component": "gfx"}
+	for k, v := range l {
+		cl[k] = v
+	}
+	s.component.With(cl).Set(22.4)
+	if testutil.CollectAndCount(s.component) != 1 {
+		t.Fatal("setup: expected one component series")
+	}
+
+	// Now mark suspended and sample: the component series must be gone.
+	writeRuntimeStatus(t, sysRoot, "0000:01:00.0", "suspended")
+	for _, tgt := range s.targets {
+		s.sampleOne(tgt, time.Now())
+	}
+	if got := testutil.CollectAndCount(s.component); got != 0 {
+		t.Fatalf("component series count = %d after suspend, want 0 (stale gfx must be dropped)", got)
+	}
+	if got := testutil.ToFloat64(s.suspended.With(l)); got != 1 {
+		t.Fatalf("suspended = %v, want 1", got)
+	}
+}
+
 type panicDevice struct{}
 
 func (panicDevice) PowerMilliwatts() (uint32, error) {

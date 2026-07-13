@@ -27,6 +27,13 @@ func main() {
 	procRoot := envOr("ERGOZ_PROCFS_ROOT", "/proc")
 	listen := envOr("ERGOZ_LISTEN", ":9743")
 	interval := durationOr("ERGOZ_SAMPLE_INTERVAL", time.Second)
+	// Enforce the 1s sampling floor as a real property, not just a default:
+	// sub-second power sampling of shared accelerators sharpens the power
+	// side channel. The escape hatch is explicit and opt-in.
+	if interval < time.Second && os.Getenv("ERGOZ_UNSAFE_FAST_SAMPLING") != "1" {
+		log.Printf("clamping sample interval %s up to the 1s floor (set ERGOZ_UNSAFE_FAST_SAMPLING=1 to override)", interval)
+		interval = time.Second
+	}
 
 	devices, err := probe.New(sysRoot, procRoot).Walk()
 	if err != nil {

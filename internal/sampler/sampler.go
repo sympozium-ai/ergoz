@@ -150,6 +150,15 @@ func (s *Sampler) sampleOne(t *Target, now time.Time) {
 		s.suspended.With(l).Set(1)
 		s.power.With(l).Set(0)
 		s.energy.With(l).Set(t.energyJoules) // energy holds, does not accrue
+		// Drop component series so a sleeping device doesn't keep exporting
+		// its last active gfx/socket wattage ("absent, never stale").
+		for _, comp := range []string{"socket", "gfx", "npu", "cpu_cores"} {
+			cl := prometheus.Labels{"component": comp}
+			for k, v := range l {
+				cl[k] = v
+			}
+			s.component.Delete(cl)
+		}
 		t.lastSample = now
 		return
 	}

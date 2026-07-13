@@ -59,24 +59,46 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
-      - name: Build image (no push)
+      - name: Build image
         uses: docker/build-push-action@v6
         with:
           context: .
           file: images/Dockerfile
           push: false
+          load: true
+          tags: ergoz:ci
+      # The purego dynamic-linking / distroless-static mismatch made the
+      # agent image unrunnable while every build stayed green — so actually
+      # EXECUTE both binaries. Both boot with no cluster and exit non-zero
+      # only on exec failure; grep confirms they got past exec.
+      - name: Agent boots (exec check)
+        run: |
+          out=$(docker run --rm -e ERGOZ_SYSFS_ROOT=/nonexistent ergoz:ci 2>&1 & sleep 3; docker ps -q --filter ancestor=ergoz:ci | xargs -r docker kill >/dev/null; true)
+          echo "$out" | grep -q "ergoz-agent on" || { echo "::error::agent failed to exec: $out"; exit 1; }
+      - name: Collector boots (exec check)
+        run: |
+          out=$(timeout 3 docker run --rm --entrypoint /ergoz-collector ergoz:ci 2>&1 || true)
+          echo "$out" | grep -q "ergoz-collector on" || { echo "::error::collector failed to exec: $out"; exit 1; }
 
-  # Informational, not a required check: k8s transitive deps make this
-  # noisy; a finding should be read, not block a docs commit.
   govulncheck:
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      - name: govulncheck
+      # Real gate: fails on any affecting vuln that is NOT in the reviewed
+      # allowlist (.github/govulncheck-allow.txt), so a new finding breaks
+      # the build while documented no-fix exceptions don't.
+      - name: govulncheck (allowlisted)
         run: |
           go install golang.org/x/vuln/cmd/govulncheck@latest
-          govulncheck ./...
+          govulncheck ./... > vuln.txt 2>&1 || true
+          cat vuln.txt
+          found=$(grep -oE 'GO-[0-9]{4}-[0-9]+' vuln.txt | sort -u || true)
+          allow=$(grep -oE 'GO-[0-9]{4}-[0-9]+' .github/govulncheck-allow.txt | sort -u || true)
+          unexpected=$(comm -23 <(echo "$found") <(echo "$allow") | grep -E 'GO-' || true)
+          if [ -n "$unexpected" ]; then
+            echo "::error::unallowlisted vulnerabilities: $unexpected"; exit 1
+          fi
+          echo "no unallowlisted vulnerabilities"

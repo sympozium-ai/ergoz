@@ -1,0 +1,11 @@
+# govulncheck OSV IDs accepted as known, reviewed exceptions.
+# The CI govulncheck job fails on any AFFECTING vuln NOT listed here, so a
+# new finding breaks the build while these documented ones don't.
+#
+# GO-2026-5932 — golang.org/x/crypto/openpgp is unmaintained (no fix version
+#   exists). Pulled in transitively by the Helm SDK (action package) for
+#   chart provenance/signature verification. Ergoz never verifies chart
+#   signatures, so the vulnerable code is init-only reachable and never
+#   exercised at runtime. Remove this line if ergoz ever calls Helm's
+#   provenance verification, or if x/crypto ships a fixed openpgp.
+GO-2026-5932

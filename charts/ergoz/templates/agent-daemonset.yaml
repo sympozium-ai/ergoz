@@ -14,6 +14,12 @@ spec:
       labels:
         app.kubernetes.io/name: ergoz-agent
     spec:
+      # Neither binary talks to the Kubernetes API — don't mount a token.
+      automountServiceAccountToken: false
+      {{- with .Values.agent.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}

@@ -5,6 +5,7 @@ package installer
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io/fs"
 	"time"
@@ -126,7 +127,9 @@ func InstallOrUpgrade(ctx context.Context, k KubeFlags, restCfg *rest.Config, op
 
 	hist := action.NewHistory(cfg)
 	hist.Max = 1
-	if _, err := hist.Run(ReleaseName); err == driver.ErrReleaseNotFound {
+	_, histErr := hist.Run(ReleaseName)
+	switch {
+	case errors.Is(histErr, driver.ErrReleaseNotFound):
 		inst := action.NewInstall(cfg)
 		inst.ReleaseName = ReleaseName
 		inst.Namespace = Namespace
@@ -137,11 +140,20 @@ func InstallOrUpgrade(ctx context.Context, k KubeFlags, restCfg *rest.Config, op
 			return 0, false, fmt.Errorf("helm install: %w", err)
 		}
 		return rel.Version, true, nil
+	case histErr != nil:
+		// Not "release absent" — a real error (RBAC, API). Don't misroute
+		// to upgrade, which would fail with a baffling "no deployed releases".
+		return 0, false, fmt.Errorf("checking existing release: %w", histErr)
 	}
 
 	up := action.NewUpgrade(cfg)
 	up.Namespace = Namespace
 	up.Timeout = timeout
+	// ReuseValues: a plain `ergoz install` re-run must not silently drop
+	// imagePullSecrets/image.tag set on a prior install (which would break
+	// image pulls). MaxHistory bounds accreting release Secrets.
+	up.ReuseValues = true
+	up.MaxHistory = 10
 	rel, err := up.RunWithContext(ctx, ReleaseName, ch, vals)
 	if err != nil {
 		return 0, false, fmt.Errorf("helm upgrade: %w", err)
@@ -190,7 +202,7 @@ func Uninstall(ctx context.Context, k KubeFlags, restCfg *rest.Config, wait time
 	}
 	hist := action.NewHistory(cfg)
 	hist.Max = 1
-	if _, err := hist.Run(ReleaseName); err == driver.ErrReleaseNotFound {
+	if _, err := hist.Run(ReleaseName); errors.Is(err, driver.ErrReleaseNotFound) {
 		return legacyUninstall(ctx, restCfg, wait)
 	}
 
@@ -265,8 +277,10 @@ func CollectorFleet(ctx context.Context, restCfg *rest.Config) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	// Address the port by its Service name ("http") so a chart-level port
+	// override still resolves.
 	body, err := cs.CoreV1().Services(Namespace).
-		ProxyGet("http", "ergoz-collector", "9744", "/api/v1/fleet", nil).
+		ProxyGet("http", "ergoz-collector", "http", "/api/v1/fleet", nil).
 		DoRaw(ctx)
 	if apierrors.IsNotFound(err) {
 		return nil, fmt.Errorf("ergoz-collector service not found in %q — is ergoz installed? (ergoz install)", Namespace)

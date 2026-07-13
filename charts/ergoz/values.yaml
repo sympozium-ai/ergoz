@@ -17,7 +17,13 @@ nvidia:
 
 agent:
   # -- Power sampling cadence. A hwmon read costs ~5 µs; 1s is cheap.
+  # Values below 1s are clamped unless ERGOZ_UNSAFE_FAST_SAMPLING=1.
   sampleInterval: 1s
+  # -- Tolerations. A fleet telemetry DaemonSet must reach tainted GPU
+  # nodes (the ones that matter most), so it tolerates everything by
+  # default — matching node-exporter / dcgm-exporter. Override to narrow.
+  tolerations:
+    - operator: Exists
   port: 9743
   resources:
     requests:
