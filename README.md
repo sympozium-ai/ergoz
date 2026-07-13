@@ -1,4 +1,9 @@
-# Ergoz
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/brand/logo-horizontal-dark.svg">
+    <img src="assets/brand/logo-horizontal-light.svg" alt="Ergoz — the meter mark: five power bars, the ember bar is the live sample" width="440">
+  </picture>
+</p>
 
 **Vendor-neutral accelerator power telemetry for Kubernetes — consumer hardware first.**
 
