@@ -4,6 +4,6 @@ description: >-
   Vendor-neutral accelerator power telemetry for Kubernetes — consumer hardware
   first
 type: application
-version: 0.1.3
-appVersion: 0.1.3
+version: 0.2.0
+appVersion: 0.2.0
 home: https://github.com/sympozium-ai/ergoz
