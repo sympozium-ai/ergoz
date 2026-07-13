@@ -64,15 +64,29 @@ sentinels are dropped, `average_all_core_power` is recomputed from the
 per-core array (observed ~2x disagreement), and gfx > socket readings are
 discarded rather than exported. See `internal/gpumetrics`.
 
-## Run it
+## CLI
+
+```
+$ ergoz install                 # applies the embedded manifests (no CRDs, no RBAC)
+$ ergoz status
+ERGOZ FLEET  ·  1/1 agents up  ·  total 18.0 W  ·  scraped 13:52:02
+└─ kind-control-plane  18.0 W
+   ├─ gpu  0000:c3:00.0   amdgpu (1002:1586)  18.0 W  [socket 18.4 W · gfx 0.0 W · npu 0.0 W · cpu_cores 4.4 W]
+   └─ npu  0000:c4:00.1   amdxdna (1022:17f0)  suspended (0 W)
+$ ergoz uninstall
+```
+
+`ergoz status` reads the collector through the kube-apiserver service proxy —
+no port-forward needed. `ergoz install --image-tag dev` targets a sideloaded
+(e.g. `kind load`-ed) image. `--kubeconfig`/`--context` behave as usual.
+
+## Run it from source
 
 ```bash
-make build          # binaries in bin/
+make build          # binaries in bin/ (agent, collector, CLI)
 make test           # unit tests (go test -race)
 make docker-build   # single image, two entrypoints
-kubectl apply -f deploy/ergoz.yaml
-kubectl -n ergoz-system port-forward svc/ergoz-collector 9744:9744
-curl -s localhost:9744/api/v1/fleet | jq
+bin/ergoz install --image-tag dev && bin/ergoz status
 ```
 
 Agent knobs (env): `ERGOZ_SAMPLE_INTERVAL` (default `1s` — a hwmon read costs
