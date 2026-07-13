@@ -4,65 +4,23 @@
 
 Ergoz (Greek ἔργον *ergon*, "work" — the root of *energy*) measures the current
 power draw of accelerators (GPUs, NPUs, …) across a fleet and exposes it as
-Kubernetes-native telemetry. It exists because the incumbents are vendor
-silos: dcgm-exporter is datacenter-NVIDIA, Kepler is RAPL+NVML in practice,
-AMD's exporter is Instinct-only. Nothing covers the commodity hardware people
-actually run local inference on — and on AMD consumer hardware, the kernel
-already exposes everything needed, world-readable, with zero vendor userspace.
+Kubernetes-native telemetry. It exists because the incumbents are vendor silos:
+dcgm-exporter is datacenter-NVIDIA, Kepler is RAPL+NVML in practice, AMD's
+exporter is Instinct-only. Nothing covers the commodity hardware people run
+local inference on — and on AMD consumer hardware the kernel already exposes
+everything needed, world-readable, with **zero vendor userspace**.
 
 First consumer: [Sympozium](https://github.com/sympozium-ai/sympozium)
 (placement decisions and the electricity dimension of run cost estimation).
-Device identity comes from
-[`llmfit-dra/pkg/probe`](https://github.com/sympozium-ai/llmfit-dra) — one
-source of truth for accelerator identification across the org.
 
-## Architecture (Phase 0)
+## Quick links
 
-```
-┌────────── node ──────────┐
-│ ergoz-agent (DaemonSet)  │   reads /sys (hostPath, ro):
-│  probe walk → devices    │   - amdgpu hwmon power1_input (µW)
-│  sample loop (1s)        │   - amdgpu gpu_metrics v3.0 blob (validated decode)
-│  Σ W·Δt energy integr.   │   - power/runtime_status (D9 suspend gate)
-│  :9743/metrics           │
-└──────────┬───────────────┘
-           │ scraped every 5s via headless-Service DNS
-┌──────────▼───────────────┐
-│ ergoz-collector (Deploy) │   :9744/metrics      merged fleet Prometheus view
-│  fleet cache             │   :9744/api/v1/fleet JSON for Sympozium etc.
-└──────────────────────────┘
-```
-
-No CRDs (decision D1), no RBAC (nothing talks to the Kubernetes API), fully
-non-root today (hwmon power files are world-readable on vanilla kernels).
-
-## Metrics
-
-| Metric | Meaning |
-|---|---|
-| `ergoz_accel_power_watts{node,kind,vendor_id,device_id,pci,driver}` | Instantaneous board/socket power (hwmon) |
-| `ergoz_accel_component_power_watts{...,component}` | Decomposed power where the ASIC exposes it: `socket`, `gfx`, `npu`, `cpu_cores`. Fields failing per-ASIC sanity validation are **absent, never zero** |
-| `ergoz_accel_energy_joules_total{...}` | Software-integrated energy since agent start |
-| `ergoz_accel_runtime_suspended{...}` | 1 = device runtime-PM suspended; power reported as synthetic 0 W rather than waking it (D9) |
-
-Names are accelerator-neutral (D8): `kind` is a label (`gpu`, `npu`, …), so new
-device classes need no renames.
-
-## Verified hardware (empirical, not aspirational)
-
-| Hardware | Source | Status |
-|---|---|---|
-| AMD Strix Halo APU (`amdgpu`) | hwmon `power1_input` + `gpu_metrics` v3.0 | ✅ live: socket/gfx/per-core decomposition agrees with hwmon within 0.2 W |
-| AMD XDNA NPU (`amdxdna`) | runtime_status | ✅ live: reported suspended, synthetic 0 W |
-| Intel Lunar Lake iGPU (`xe`) | — | ✅ correctly reported unmeasurable (no hwmon power exists; a known kernel gap) |
-| NVIDIA GeForce | NVML (`libnvidia-ml.so.1`, dlopen) | 🔜 Phase 1 |
-| Intel Arc dGPU | xe/i915 `energy1_input` (µJ counter) | 🔜 Phase 1 |
-| CPU package (RAPL) | `/sys/class/powercap` (root-only) | 🔜 Phase 2, opt-in privileged mode |
-
-The `gpu_metrics` parser trusts only fields validated on real silicon: 0xFFFF
-sentinels are dropped, `average_all_core_power` is recomputed from the
-per-core array (observed ~2x disagreement), and gfx > socket readings are
-discarded rather than exported. See `internal/gpumetrics`.
+| 🚀 Get started | 🔧 Operate | 📖 Reference | 🧭 Project |
+|---|---|---|---|
+| [Install the CLI](#install-the-cli) | [`ergoz status`](#cli) | [Metrics](#metrics) | [Architecture](#architecture) |
+| [Deploy to a cluster](#deploy-to-a-cluster) | [Upgrade](#upgrade) | [Fleet JSON API](#fleet-json-api) | [Security notes](#security-notes) |
+| [Private-registry images](#private-registry-images) | [Uninstall](#uninstall) | [Verified hardware](#verified-hardware) | [Roadmap](#roadmap) |
+| [Helm without the CLI](#helm-without-the-cli) | [Fidelity tuning](#fidelity-tuning) | [Configuration](#configuration) | [Development](#development) |
 
 ## Install the CLI
 
@@ -78,54 +36,157 @@ Once public, the sympozium-style one-liner works as-is:
 curl -fsSL https://raw.githubusercontent.com/sympozium-ai/ergoz/main/install.sh | sh
 ```
 
-(Append `-s -- --local` to install to `~/.local/bin` without sudo. With a Go
-toolchain, `GOPRIVATE=github.com/sympozium-ai go install
-github.com/sympozium-ai/ergoz/cmd/ergoz@latest` also works.)
+Append `-s -- --local` to install to `~/.local/bin` without sudo. With a Go
+toolchain: `GOPRIVATE=github.com/sympozium-ai go install
+github.com/sympozium-ai/ergoz/cmd/ergoz@latest`.
 
-## CLI
+Every release ships `ergoz-{linux,darwin}-{amd64,arm64}` binaries, a packaged
+Helm chart, and `checksums.txt` as release assets, plus a multi-arch container
+image at `ghcr.io/sympozium-ai/ergoz:vX.Y.Z`.
 
-```
-$ ergoz install                 # applies the embedded manifests (no CRDs, no RBAC)
-$ ergoz status
-ERGOZ FLEET  ·  1/1 agents up  ·  total 18.0 W  ·  scraped 13:52:02
-└─ kind-control-plane  18.0 W
-   ├─ gpu  0000:c3:00.0   amdgpu (1002:1586)  18.0 W  [socket 18.4 W · gfx 0.0 W · npu 0.0 W · cpu_cores 4.4 W]
-   └─ npu  0000:c4:00.1   amdxdna (1022:17f0)  suspended (0 W)
-$ ergoz uninstall
-```
-
-`ergoz status` reads the collector through the kube-apiserver service proxy —
-no port-forward needed. `ergoz install --image-tag dev` targets a sideloaded
-(e.g. `kind load`-ed) image. `--kubeconfig`/`--context` behave as usual.
-
-`ergoz install` drives the **embedded Helm chart** — it creates a real Helm
-release (`ergoz` in `ergoz-system`, visible in `helm list`), and re-running
-install performs a Helm upgrade. Helm users can skip the CLI entirely:
+## Deploy to a cluster
 
 ```bash
-helm install ergoz charts/ergoz -n ergoz-system --create-namespace
+ergoz install          # embedded Helm chart → release "ergoz" in ergoz-system
+ergoz status
 ```
 
-While the ghcr image package is private, give the installer a token with
-`read:packages` and it creates the pull secret for you:
+`ergoz install` creates a **real Helm release** — visible in `helm list -n
+ergoz-system`. No CRDs and no RBAC are created; the agent runs non-root with a
+read-only `/sys` hostPath.
+
+For a kind-sideloaded image: `ergoz install --image-tag dev`.
+
+### Private-registry images
+
+While the ghcr package is private, hand the installer a token with
+`read:packages` and it creates the pull secret and wires `imagePullSecrets`:
 
 ```bash
 ergoz install --ghcr-token "$(gh auth token)"
 ```
 
-## Run it from source
+### Helm without the CLI
 
 ```bash
-make build          # binaries in bin/ (agent, collector, CLI)
-make test           # unit tests (go test -race)
-make docker-build   # single image, two entrypoints
-bin/ergoz install --image-tag dev && bin/ergoz status
+helm install ergoz charts/ergoz -n ergoz-system --create-namespace
+# or from a release asset:
+helm install ergoz ergoz-<version>.tgz -n ergoz-system --create-namespace
 ```
 
-Agent knobs (env): `ERGOZ_SAMPLE_INTERVAL` (default `1s` — a hwmon read costs
-~5 µs, so even 100ms is cheap), `ERGOZ_SYSFS_ROOT`, `ERGOZ_LISTEN`.
-Collector knobs: `ERGOZ_SCRAPE_INTERVAL` (default `5s`), `ERGOZ_AGENT_SERVICE`,
-`ERGOZ_AGENT_PORT`.
+## CLI
+
+```
+$ ergoz status
+ERGOZ FLEET  ·  1/1 agents up  ·  total 18.0 W  ·  scraped 13:52:02
+└─ kind-control-plane  18.0 W
+   ├─ gpu  0000:c3:00.0   amdgpu (1002:1586)  18.0 W  [socket 18.4 W · gfx 0.0 W · npu 0.0 W · cpu_cores 4.4 W]
+   └─ npu  0000:c4:00.1   amdxdna (1022:17f0)  suspended (0 W)
+```
+
+`ergoz status` reads the collector through the kube-apiserver **service
+proxy** — no port-forward needed. `--kubeconfig`/`--context` behave as usual.
+
+### Upgrade
+
+Re-run `ergoz install` (optionally with a new `--image-tag`): it detects the
+existing release and performs a Helm upgrade, bumping the revision.
+
+### Uninstall
+
+```bash
+ergoz uninstall
+```
+
+Removes the Helm release and the namespace. Installs made by the pre-Helm CLI
+(raw manifests) are detected and cleaned up via namespace deletion.
+
+## Metrics
+
+| Metric | Meaning |
+|---|---|
+| `ergoz_accel_power_watts{node,kind,vendor_id,device_id,pci,driver}` | Instantaneous board/socket power (hwmon) |
+| `ergoz_accel_component_power_watts{...,component}` | Decomposed power where the ASIC exposes it: `socket`, `gfx`, `npu`, `cpu_cores`. Fields failing per-ASIC sanity validation are **absent, never zero** |
+| `ergoz_accel_energy_joules_total{...}` | Software-integrated energy (Σ W·Δt) since agent start |
+| `ergoz_accel_runtime_suspended{...}` | 1 = device runtime-PM suspended; power reported as synthetic 0 W rather than waking it |
+
+Names are accelerator-neutral: `kind` is a label (`gpu`, `npu`, …), so new
+device classes need no renames. The collector re-exposes every agent's
+`ergoz_*` families merged at `:9744/metrics` for one-stop Prometheus scraping.
+
+## Fleet JSON API
+
+`GET :9744/api/v1/fleet` on the collector — the consumer-friendly view
+(Sympozium's integration point):
+
+```json
+{
+  "agentsUp": 1, "agentsTotal": 1, "totalWatts": 18.0,
+  "devices": [{"node":"...","kind":"gpu","pci":"0000:c3:00.0",
+               "powerWatts":18.0,"components":{"socket":18.4,"gfx":0.0},
+               "energyJoules":6443.4,"suspended":false}]
+}
+```
+
+## Verified hardware
+
+Empirical, not aspirational:
+
+| Hardware | Source | Status |
+|---|---|---|
+| AMD Strix Halo APU (`amdgpu`) | hwmon `power1_input` + `gpu_metrics` v3.0 | ✅ live: socket/gfx/per-core decomposition agrees with hwmon within 0.2 W |
+| AMD XDNA NPU (`amdxdna`) | runtime_status | ✅ live: reported suspended, synthetic 0 W |
+| Intel Lunar Lake iGPU (`xe`) | — | ✅ correctly reported unmeasurable (no hwmon power exists; a known kernel gap) |
+| NVIDIA GeForce | NVML (`libnvidia-ml.so.1`, dlopen) | 🔜 Phase 1 |
+| Intel Arc dGPU | xe/i915 `energy1_input` (µJ counter) | 🔜 Phase 1 |
+| CPU package (RAPL) | `/sys/class/powercap` (root-only) | 🔜 Phase 2, opt-in privileged mode |
+
+The `gpu_metrics` parser trusts only fields validated on real silicon: 0xFFFF
+sentinels are dropped, `average_all_core_power` is recomputed from the
+per-core array (observed ~2× disagreement), and gfx > socket readings are
+discarded rather than exported. See `internal/gpumetrics`.
+
+## Configuration
+
+Helm values (`charts/ergoz/values.yaml`):
+
+| Value | Default | Meaning |
+|---|---|---|
+| `image.repository` / `image.tag` | ghcr, `v{appVersion}` | Container image; `--image-tag` sets this |
+| `imagePullSecrets` | `[]` | `--ghcr-token` sets `[{name: ghcr-pull}]` |
+| `agent.sampleInterval` | `1s` | Power sampling cadence |
+| `collector.scrapeInterval` | `5s` | Agent scrape cadence |
+| `agent.resources` / `collector.resources` | small | Pod resources |
+
+### Fidelity tuning
+
+A hwmon read costs ~5 µs, so sampling is effectively free down to sub-second
+intervals; the real cost axis is metric fan-out. Suggested tiers:
+`sampleInterval: 1s` + `scrapeInterval: 5s` (default, near-realtime),
+`30s`/`1m` (dashboards), `5m` (capacity trending). The exported energy counter
+integrates at sample resolution regardless of how rarely you scrape.
+
+## Architecture
+
+```
+┌────────── node ──────────┐
+│ ergoz-agent (DaemonSet)  │   reads /sys (hostPath, ro):
+│  probe walk → devices    │   - amdgpu hwmon power1_input (µW)
+│  sample loop (1s)        │   - amdgpu gpu_metrics v3.0 blob (validated decode)
+│  Σ W·Δt energy integr.   │   - power/runtime_status (suspend gate)
+│  :9743/metrics           │
+└──────────┬───────────────┘
+           │ scraped via headless-Service DNS
+┌──────────▼───────────────┐
+│ ergoz-collector (Deploy) │   :9744/metrics      merged fleet Prometheus view
+│  fleet cache             │   :9744/api/v1/fleet JSON for Sympozium etc.
+└──────────────────────────┘
+```
+
+Device identity comes from
+[`llmfit-dra/pkg/probe`](https://github.com/sympozium-ai/llmfit-dra) — one
+source of truth for accelerator identification across the org. No CRDs, no
+RBAC (nothing talks to the Kubernetes API), non-root end to end.
 
 ## Security notes
 
@@ -136,6 +197,21 @@ Collector knobs: `ERGOZ_SCRAPE_INTERVAL` (default `5s`), `ERGOZ_AGENT_SERVICE`,
   network policy in front of anything that re-exports it. The default sample
   interval (≥1 s) is a deliberate floor.
 
+## Development
+
+```bash
+make build          # binaries in bin/ (agent, collector, CLI)
+make test           # go test -race
+make docker-build   # single image, two entrypoints
+helm lint charts/ergoz
+bin/ergoz install --image-tag dev && bin/ergoz status
+```
+
+Releases are cut by release-please (conventional commits); each release
+publishes CLI binaries + packaged chart as assets and pushes the multi-arch
+image to ghcr. `workflow_dispatch` on the release workflow re-publishes
+assets for an existing tag.
+
 ## Roadmap
 
 - **Phase 1**: NVIDIA GeForce via NVML (dlopen, no cgo hard-dep); Intel Arc
@@ -143,4 +219,4 @@ Collector knobs: `ERGOZ_SCRAPE_INTERVAL` (default `5s`), `ERGOZ_AGENT_SERVICE`,
   tables for AMD dGPUs and older APUs.
 - **Phase 2**: opt-in privileged mode for RAPL CPU package power; OTLP push
   exporter; device→pod attribution via kubelet pod-resources (consumed by
-  llmfit-dra/Sympozium — Ergoz itself stays observability-only, decision D4/D7).
+  llmfit-dra/Sympozium — Ergoz itself stays observability-only).
