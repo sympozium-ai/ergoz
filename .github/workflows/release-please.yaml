@@ -39,26 +39,28 @@ jobs:
       )
     runs-on: ubuntu-latest
     steps:
-      - name: Wait for CI checks on this commit
+      - name: Wait for CI to pass on this commit
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SHA: ${{ github.sha }}
         run: |
           set -e
+          # Judge the latest NON-cancelled CI workflow run for this commit.
+          # cancel-in-progress leaves cancelled runs on the same SHA; those
+          # are noise, not a release blocker.
           for i in $(seq 1 60); do
-            json=$(gh api "repos/${{ github.repository }}/commits/${{ github.sha }}/check-runs?per_page=100")
-            ok=true
-            for check in go staticcheck helm image; do
-              state=$(echo "$json" | jq -r --arg n "$check" '[.check_runs[] | select(.name==$n)] | last | .conclusion // "pending"')
-              echo "  $check: $state"
-              [ "$state" = "success" ] || ok=false
-              if [ "$state" = "failure" ] || [ "$state" = "cancelled" ]; then
-                echo "::error::required check '$check' concluded '$state' — refusing to release"; exit 1
-              fi
-            done
-            $ok && echo "all required checks green" && exit 0
+            runs=$(gh api "repos/${{ github.repository }}/actions/workflows/ci.yaml/runs?head_sha=$SHA&per_page=30" --jq '.workflow_runs')
+            latest=$(echo "$runs" | jq 'map(select(.conclusion != "cancelled")) | sort_by(.run_started_at) | last')
+            status=$(echo "$latest" | jq -r '.status // "none"')
+            concl=$(echo "$latest" | jq -r '.conclusion // "none"')
+            echo "  CI: status=$status conclusion=$concl"
+            if [ "$status" = "completed" ]; then
+              [ "$concl" = "success" ] && echo "CI green — releasing" && exit 0
+              echo "::error::CI concluded '$concl' — refusing to release"; exit 1
+            fi
             sleep 20
           done
-          echo "::error::timed out waiting for CI checks"; exit 1
+          echo "::error::timed out waiting for CI"; exit 1
 
   # CLI binaries + packaged Helm chart attached to the release — these are
   # what install.sh / `gh release download` fetch.
