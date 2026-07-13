@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"runtime/debug"
 	"sort"
 	"strings"
 	"time"
@@ -20,8 +21,19 @@ import (
 	"github.com/sympozium-ai/ergoz/internal/installer"
 )
 
-// version is stamped via -ldflags at release time.
+// version is stamped via -ldflags at release time; `go install` builds fall
+// back to the module version from build info.
 var version = "dev"
+
+func effectiveVersion() string {
+	if version != "dev" {
+		return version
+	}
+	if bi, ok := debug.ReadBuildInfo(); ok && bi.Main.Version != "" && bi.Main.Version != "(devel)" {
+		return bi.Main.Version
+	}
+	return version
+}
 
 func main() {
 	var kubeconfig, kubecontext string
@@ -217,7 +229,7 @@ func newVersionCmd() *cobra.Command {
 		Use:   "version",
 		Short: "Print the ergoz CLI version",
 		Run: func(*cobra.Command, []string) {
-			fmt.Println("ergoz", version)
+			fmt.Println("ergoz", effectiveVersion())
 		},
 	}
 }

@@ -64,6 +64,24 @@ sentinels are dropped, `average_all_core_power` is recomputed from the
 per-core array (observed ~2x disagreement), and gfx > socket readings are
 discarded rather than exported. See `internal/gpumetrics`.
 
+## Install the CLI
+
+While the repo is private (uses your existing `gh` auth):
+
+```bash
+gh api repos/sympozium-ai/ergoz/contents/install.sh -H "Accept: application/vnd.github.raw" | sh
+```
+
+Once public, the sympozium-style one-liner works as-is:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/sympozium-ai/ergoz/main/install.sh | sh
+```
+
+(Append `-s -- --local` to install to `~/.local/bin` without sudo. With a Go
+toolchain, `GOPRIVATE=github.com/sympozium-ai go install
+github.com/sympozium-ai/ergoz/cmd/ergoz@latest` also works.)
+
 ## CLI
 
 ```
