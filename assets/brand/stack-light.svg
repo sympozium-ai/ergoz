@@ -1,0 +1,91 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 420" width="960" height="420">
+  <!-- ground: transparent (designed for bone #f0ece4 surfaces) -->
+
+  <!-- outer hairline frame + corner brackets -->
+  <rect x="14" y="14" width="932" height="392" fill="none" stroke="#c9c3b6" stroke-width="1"/>
+  <path d="M14 32 V14 H32" fill="none" stroke="#111110" stroke-width="2"/>
+  <path d="M928 14 H946 V32" fill="none" stroke="#111110" stroke-width="2"/>
+  <path d="M946 388 V406 H928" fill="none" stroke="#111110" stroke-width="2"/>
+  <path d="M32 406 H14 V388" fill="none" stroke="#111110" stroke-width="2"/>
+
+  <!-- captions -->
+  <text x="36" y="37" font-family="ui-monospace, 'JetBrains Mono', 'Cascadia Mono', Menlo, monospace" font-size="9" letter-spacing="2" fill="#8a8c82">SIBLING STACK</text>
+  <text x="924" y="37" text-anchor="end" font-family="ui-monospace, 'JetBrains Mono', 'Cascadia Mono', Menlo, monospace" font-size="9" letter-spacing="2" fill="#8a8c82">SIGNALS &#8594; ORCHESTRATION</text>
+
+  <!-- ================= layer boxes ================= -->
+
+  <!-- SYMPOZIUM -->
+  <rect x="250" y="44" width="460" height="70" fill="none" stroke="#c9c3b6" stroke-width="1"/>
+  <text x="272" y="72" font-family="ui-monospace, 'JetBrains Mono', 'Cascadia Mono', Menlo, monospace" font-size="17" font-weight="700" letter-spacing="3" fill="#111110">SYMPOZIUM</text>
+  <text x="272" y="90" font-family="ui-monospace, 'JetBrains Mono', 'Cascadia Mono', Menlo, monospace" font-size="8.5" letter-spacing="1.5" fill="#8a8c82">K8S-NATIVE AI AGENT ORCHESTRATION</text>
+  <text x="272" y="103" font-family="ui-monospace, 'JetBrains Mono', 'Cascadia Mono', Menlo, monospace" font-size="8.5" letter-spacing="1.5" fill="#8a8c82">CONSUMES &#8212; PLACEMENT + RUN COST ($ / J)</text>
+  <!-- ensemble glyph: 2x2 squares -->
+  <rect x="650" y="64" width="12" height="12" fill="#111110"/>
+  <rect x="668" y="64" width="12" height="12" fill="#111110"/>
+  <rect x="650" y="82" width="12" height="12" fill="#111110"/>
+  <rect x="668" y="82" width="12" height="12" fill="#111110"/>
+
+  <!-- LLMFIT-DRA -->
+  <rect x="250" y="142" width="460" height="70" fill="none" stroke="#c9c3b6" stroke-width="1"/>
+  <text x="272" y="170" font-family="ui-monospace, 'JetBrains Mono', 'Cascadia Mono', Menlo, monospace" font-size="17" font-weight="700" letter-spacing="3" fill="#111110">LLMFIT-DRA</text>
+  <text x="272" y="188" font-family="ui-monospace, 'JetBrains Mono', 'Cascadia Mono', Menlo, monospace" font-size="8.5" letter-spacing="1.5" fill="#8a8c82">DRA DRIVER &#8212; ACCELERATOR INVENTORY &amp; CLAIMS</text>
+  <text x="272" y="201" font-family="ui-monospace, 'JetBrains Mono', 'Cascadia Mono', Menlo, monospace" font-size="8.5" letter-spacing="1.5" fill="#8a8c82">CLAIMED, NOT PLACED &#8212; OWNS DEVICE IDENTITY</text>
+  <!-- claim glyph: square with tick notch -->
+  <polygon points="650,163 678,163 678,180 667,180 667,191 650,191" fill="none" stroke="#111110" stroke-width="2" stroke-linejoin="miter"/>
+  <rect x="671" y="184" width="7" height="7" fill="#8a8c82"/>
+
+  <!-- ERGOZ -->
+  <rect x="250" y="240" width="460" height="70" fill="none" stroke="#c9c3b6" stroke-width="1"/>
+  <text x="272" y="268" font-family="ui-monospace, 'JetBrains Mono', 'Cascadia Mono', Menlo, monospace" font-size="17" font-weight="700" letter-spacing="3" fill="#111110">ERGOZ</text>
+  <text x="272" y="286" font-family="ui-monospace, 'JetBrains Mono', 'Cascadia Mono', Menlo, monospace" font-size="8.5" letter-spacing="1.5" fill="#8a8c82">ACCELERATOR POWER TELEMETRY</text>
+  <text x="272" y="299" font-family="ui-monospace, 'JetBrains Mono', 'Cascadia Mono', Menlo, monospace" font-size="8.5" letter-spacing="1.5" fill="#8a8c82">NODE AGENT DS + FLEET COLLECTOR</text>
+  <!-- the Meter mark -->
+  <g transform="translate(644,257.6) scale(0.30)">
+    <rect x="9" y="68" width="14" height="36" fill="#1a1a18"/>
+    <rect x="31" y="44" width="14" height="60" fill="#1a1a18"/>
+    <rect x="53" y="12" width="14" height="92" fill="#1a1a18"/>
+    <rect x="75" y="32" width="14" height="72" fill="#1a1a18"/>
+    <rect x="97" y="56" width="14" height="48" fill="#c4532a"/>
+  </g>
+
+  <!-- ACCELERATORS (substrate) -->
+  <rect x="250" y="338" width="460" height="48" fill="none" stroke="#c9c3b6" stroke-width="1"/>
+  <text x="272" y="360" font-family="ui-monospace, 'JetBrains Mono', 'Cascadia Mono', Menlo, monospace" font-size="13" font-weight="700" letter-spacing="3" fill="#111110">ACCELERATORS</text>
+  <text x="272" y="375" font-family="ui-monospace, 'JetBrains Mono', 'Cascadia Mono', Menlo, monospace" font-size="8" letter-spacing="1.5" fill="#8a8c82">GPU / NPU ON CLUSTER NODES</text>
+  <rect x="630" y="356" width="12" height="12" fill="none" stroke="#8a8c82" stroke-width="1.5"/>
+  <rect x="650" y="356" width="12" height="12" fill="none" stroke="#8a8c82" stroke-width="1.5"/>
+  <rect x="670" y="356" width="12" height="12" fill="none" stroke="#8a8c82" stroke-width="1.5"/>
+  <rect x="690" y="356" width="12" height="12" fill="none" stroke="#8a8c82" stroke-width="1.5"/>
+
+  <!-- ================= flows ================= -->
+
+  <!-- RUST: watts, accelerators -> ergoz -->
+  <rect x="336.5" y="334.5" width="7" height="7" fill="#c4532a"/>
+  <line x1="340" y1="334" x2="340" y2="319" stroke="#c4532a" stroke-width="2.5"/>
+  <polygon points="334,320 346,320 340,310" fill="#c4532a"/>
+  <text x="356" y="327" font-family="ui-monospace, 'JetBrains Mono', 'Cascadia Mono', Menlo, monospace" font-size="8" letter-spacing="1.5" fill="#8a8c82">WATTS &#8212; SYSFS / NVML</text>
+
+  <!-- RUST: power/energy, ergoz -> sympozium (left channel) -->
+  <rect x="246.5" y="271.5" width="7" height="7" fill="#c4532a"/>
+  <path d="M250 275 H170 V79 H239" fill="none" stroke="#c4532a" stroke-width="2.5" stroke-linejoin="miter"/>
+  <polygon points="240,73 240,85 250,79" fill="#c4532a"/>
+  <text transform="rotate(-90 158 177)" x="158" y="177" text-anchor="middle" font-family="ui-monospace, 'JetBrains Mono', 'Cascadia Mono', Menlo, monospace" font-size="9" letter-spacing="1.5" fill="#8a8c82">POWER / ENERGY &#8212; FLEET API</text>
+
+  <!-- inventory/claims, accelerators -> llmfit-dra (right channel) -->
+  <rect x="706.5" y="358.5" width="7" height="7" fill="#111110"/>
+  <path d="M710 362 H790 V177 H721" fill="none" stroke="#111110" stroke-width="2" stroke-linejoin="miter"/>
+  <polygon points="720,171 720,183 710,177" fill="#111110"/>
+  <text transform="rotate(90 802 270)" x="802" y="270" text-anchor="middle" font-family="ui-monospace, 'JetBrains Mono', 'Cascadia Mono', Menlo, monospace" font-size="9" letter-spacing="1.5" fill="#8a8c82">INVENTORY / CLAIMS &#8212; RESOURCESLICES</text>
+
+  <!-- placement, llmfit-dra -> sympozium -->
+  <rect x="557" y="139" width="6" height="6" fill="#111110"/>
+  <line x1="560" y1="139" x2="560" y2="123" stroke="#111110" stroke-width="2"/>
+  <polygon points="554,124 566,124 560,114" fill="#111110"/>
+  <text x="574" y="131" font-family="ui-monospace, 'JetBrains Mono', 'Cascadia Mono', Menlo, monospace" font-size="8" letter-spacing="1.5" fill="#8a8c82">PLACEMENT</text>
+
+  <!-- device identity, llmfit-dra -> ergoz (thin) -->
+  <rect x="557.5" y="209.5" width="5" height="5" fill="#8a8c82"/>
+  <line x1="560" y1="214" x2="560" y2="231" stroke="#8a8c82" stroke-width="1"/>
+  <polygon points="555,231 565,231 560,240" fill="#8a8c82"/>
+  <text x="546" y="229" text-anchor="end" font-family="ui-monospace, 'JetBrains Mono', 'Cascadia Mono', Menlo, monospace" font-size="8" letter-spacing="1.5" fill="#8a8c82">DEVICE IDENTITY (PKG/PROBE)</text>
+</svg>
