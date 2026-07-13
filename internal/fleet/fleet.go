@@ -18,6 +18,7 @@ import (
 
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
+	"github.com/prometheus/common/model"
 )
 
 // AgentLister returns the current set of agent scrape endpoints
@@ -155,7 +156,9 @@ func (c *Collector) scrapeOne(ctx context.Context, addr string) (map[string]*dto
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("status %d", resp.StatusCode)
 	}
-	var parser expfmt.TextParser
+	// The zero-value TextParser carries an unset validation scheme and
+	// panics on first parse (prometheus/common >= 0.70) — always construct.
+	parser := expfmt.NewTextParser(model.UTF8Validation)
 	return parser.TextToMetricFamilies(io.LimitReader(resp.Body, 4<<20))
 }
 
