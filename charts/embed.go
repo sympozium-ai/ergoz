@@ -5,6 +5,8 @@ package charts
 import "embed"
 
 // Ergoz is the embedded Helm chart filesystem (rooted at "ergoz/").
+// The all: prefix is load-bearing: without it go:embed silently skips
+// underscore-prefixed files — i.e. templates/_helpers.tpl.
 //
-//go:embed ergoz
+//go:embed all:ergoz
 var Ergoz embed.FS
