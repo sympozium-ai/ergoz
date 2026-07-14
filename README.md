@@ -45,7 +45,8 @@ Append `-s -- --local` to install to `~/.local/bin` without sudo. With a Go
 toolchain: `GOPRIVATE=github.com/sympozium-ai go install
 github.com/sympozium-ai/ergoz/cmd/ergoz@latest`.
 
-Every release ships `ergoz-{linux,darwin}-{amd64,arm64}` binaries, a packaged
+Every release ships `ergoz-{linux,darwin}-amd64` binaries (Apple Silicon runs
+darwin-amd64 under Rosetta; linux-arm64 builds from source), a packaged
 Helm chart, and `checksums.txt` as release assets, plus a multi-arch container
 image at `ghcr.io/sympozium-ai/ergoz:vX.Y.Z`.
 

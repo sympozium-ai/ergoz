@@ -43,7 +43,11 @@ case "$(uname -s)" in
 esac
 case "$(uname -m)" in
     x86_64|amd64)  ARCH="amd64" ;;
-    aarch64|arm64) ARCH="arm64" ;;
+    # Releases are amd64-only. Apple Silicon: darwin-amd64 runs fine under
+    # Rosetta. Linux arm64: build from source (go install ./cmd/ergoz).
+    arm64) [ "$OS" = "darwin" ] && ARCH="amd64" \
+        || err "No linux-arm64 binaries published; build from source: GOPRIVATE=github.com/sympozium-ai go install github.com/sympozium-ai/ergoz/cmd/ergoz@latest" ;;
+    aarch64) err "No linux-arm64 binaries published; build from source: GOPRIVATE=github.com/sympozium-ai go install github.com/sympozium-ai/ergoz/cmd/ergoz@latest" ;;
     *) err "Unsupported architecture: $(uname -m)" ;;
 esac
 ASSET="${BINARY}-${OS}-${ARCH}"
