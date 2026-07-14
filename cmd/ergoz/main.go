@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"runtime/debug"
 	"sort"
@@ -15,6 +16,7 @@ import (
 	"github.com/spf13/cobra"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+	"sigs.k8s.io/yaml"
 
 	"github.com/sympozium-ai/ergoz/internal/fleet"
 	"github.com/sympozium-ai/ergoz/internal/installer"
@@ -67,10 +69,27 @@ func main() {
 }
 
 func newStatusCmd(restCfg func() (*rest.Config, error)) *cobra.Command {
-	return &cobra.Command{
+	var output string
+	var asJSON, asYAML bool
+	cmd := &cobra.Command{
 		Use:   "status",
 		Short: "Show nodes, their accelerators, and current power draw",
+		Long: `Show current fleet power draw as a node → accelerator tree.
+
+Use -o json or -o yaml (or --json / --yaml) for machine-readable output —
+the raw /api/v1/fleet snapshot, suitable for jq or scripting.`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			format := output
+			switch {
+			case asJSON && output == "tree":
+				format = "json"
+			case asYAML && output == "tree":
+				format = "yaml"
+			}
+			if format != "tree" && format != "json" && format != "yaml" {
+				return fmt.Errorf("invalid --output %q (want tree, json, or yaml)", format)
+			}
+
 			cfg, err := restCfg()
 			if err != nil {
 				return err
@@ -86,13 +105,36 @@ func newStatusCmd(restCfg func() (*rest.Config, error)) *cobra.Command {
 			if err := json.Unmarshal(body, &snap); err != nil {
 				return fmt.Errorf("parsing fleet response: %w", err)
 			}
-			printTree(snap)
-			return nil
+			return renderStatus(cmd.OutOrStdout(), snap, format)
 		},
+	}
+	cmd.Flags().StringVarP(&output, "output", "o", "tree", "Output format: tree, json, or yaml")
+	cmd.Flags().BoolVar(&asJSON, "json", false, "Shorthand for --output json")
+	cmd.Flags().BoolVar(&asYAML, "yaml", false, "Shorthand for --output yaml")
+	return cmd
+}
+
+// renderStatus writes the fleet snapshot in the requested format.
+func renderStatus(w io.Writer, snap fleet.Snapshot, format string) error {
+	switch format {
+	case "json":
+		enc := json.NewEncoder(w)
+		enc.SetIndent("", "  ")
+		return enc.Encode(snap)
+	case "yaml":
+		b, err := yaml.Marshal(snap)
+		if err != nil {
+			return err
+		}
+		_, err = w.Write(b)
+		return err
+	default:
+		printTree(w, snap)
+		return nil
 	}
 }
 
-func printTree(snap fleet.Snapshot) {
+func printTree(w io.Writer, snap fleet.Snapshot) {
 	byNode := map[string][]fleet.DevicePower{}
 	for _, d := range snap.Devices {
 		byNode[d.Node] = append(byNode[d.Node], d)
@@ -103,11 +145,11 @@ func printTree(snap fleet.Snapshot) {
 	}
 	sort.Strings(nodes)
 
-	fmt.Printf("ERGOZ FLEET  ·  %d/%d agents up  ·  total %s  ·  scraped %s\n",
+	fmt.Fprintf(w, "ERGOZ FLEET  ·  %d/%d agents up  ·  total %s  ·  scraped %s\n",
 		snap.AgentsUp, snap.AgentsTotal, watts(snap.TotalWatts), snap.ScrapedAt.Local().Format("15:04:05"))
 
 	if len(nodes) == 0 {
-		fmt.Println("\n  (no accelerators reported — are agents running? kubectl -n ergoz-system get pods)")
+		fmt.Fprintln(w, "\n  (no accelerators reported — are agents running? kubectl -n ergoz-system get pods)")
 		return
 	}
 	for ni, node := range nodes {
@@ -116,12 +158,12 @@ func printTree(snap fleet.Snapshot) {
 		for _, d := range byNode[node] {
 			nodeTotal += d.PowerWatts
 		}
-		fmt.Printf("%s %s  %s\n", branch(nodeLast), node, watts(nodeTotal))
+		fmt.Fprintf(w, "%s %s  %s\n", branch(nodeLast), node, watts(nodeTotal))
 
 		devs := byNode[node]
 		for di, d := range devs {
 			devLast := di == len(devs)-1
-			fmt.Printf("%s%s %s\n", indent(nodeLast), branch(devLast), deviceLine(d))
+			fmt.Fprintf(w, "%s%s %s\n", indent(nodeLast), branch(devLast), deviceLine(d))
 		}
 	}
 }
@@ -131,7 +173,11 @@ func deviceLine(d fleet.DevicePower) string {
 	if d.Suspended {
 		return fmt.Sprintf("%s  suspended (0 W)", id)
 	}
-	line := fmt.Sprintf("%s  %s", id, watts(d.PowerWatts))
+	suffix := ""
+	if d.Stale {
+		suffix = "  (stale)"
+	}
+	line := fmt.Sprintf("%s  %s%s", id, watts(d.PowerWatts), suffix)
 	if len(d.Components) > 0 {
 		parts := make([]string, 0, len(d.Components))
 		for _, c := range []string{"socket", "gfx", "npu", "cpu_cores"} {
