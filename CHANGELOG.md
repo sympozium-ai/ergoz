@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1](https://github.com/sympozium-ai/ergoz/compare/v0.2.0...v0.2.1) (2026-07-13)
+
+
+### Bug Fixes
+
+* **install:** fail fast with cause on image-pull/crashloop; amd64-only image ([066173d](https://github.com/sympozium-ai/ergoz/commit/066173d04eb723c1bc138c87c53833ec341086d0))
+
 ## [0.2.0](https://github.com/sympozium-ai/ergoz/compare/v0.1.3...v0.2.0) (2026-07-13)
 
 
