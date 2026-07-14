@@ -227,6 +227,11 @@ helm lint charts/ergoz
 bin/ergoz install --image-tag dev && bin/ergoz status
 ```
 
+NVIDIA hardware testing without owning a GPU: `hack/gpu-vm.sh up` builds a
+throwaway GCP spot VM (T4, ~$0.20/hr) running a GPU-injected kind cluster
+(DRA-enabled) with ergoz + llmfit-dra deployed, and prints agent logs and
+live metrics; `down` deletes it. Prereqs and knobs in the script header.
+
 Releases are cut by release-please (conventional commits); each release
 publishes CLI binaries + packaged chart as assets and pushes the multi-arch
 image to ghcr. `workflow_dispatch` on the release workflow re-publishes
@@ -234,11 +239,13 @@ assets for an existing tag.
 
 ## Roadmap
 
-- **Phase 1**: ~~NVIDIA GeForce via NVML~~ shipped (synthetic-validated; the
-  remaining gate measurements need real hardware — NVML call latency on GSP
-  drivers, RTD3 behavior, energy-counter support per SKU). Still open: Intel
-  Arc energy counters (ΔµJ/Δt with wrap handling); per-ASIC `gpu_metrics`
-  v1/v2 tables for AMD dGPUs and older APUs.
+- **Phase 1**: ~~NVIDIA via NVML~~ shipped and **hardware-validated on
+  Tesla T4** (2026-07-14, GCP passthrough via `hack/gpu-vm.sh`: dlopen →
+  power → collector, ~14 W idle; needs `nvidia.devAccess` or device-plugin
+  injection). Still pending real consumer hardware: RTD3 suspend behavior
+  (unreproducible on datacenter passthrough), energy-counter support per
+  SKU. Still open: Intel Arc energy counters (ΔµJ/Δt with wrap handling);
+  per-ASIC `gpu_metrics` v1/v2 tables for AMD dGPUs and older APUs.
 - **Phase 2**: opt-in privileged mode for RAPL CPU package power; OTLP push
   exporter; device→pod attribution via kubelet pod-resources (consumed by
   llmfit-dra/Sympozium — Ergoz itself stays observability-only).
