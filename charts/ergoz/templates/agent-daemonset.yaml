@@ -55,8 +55,16 @@ spec:
               mountPath: /host/nvidia
               readOnly: true
             {{- end }}
+            {{- if .Values.nvidia.devAccess }}
+            - name: host-dev
+              mountPath: /dev
+            {{- end }}
           securityContext:
+            {{- if .Values.nvidia.devAccess }}
+            {{- include "ergoz.securityContextDevAccess" . | nindent 12 }}
+            {{- else }}
             {{- include "ergoz.securityContext" . | nindent 12 }}
+            {{- end }}
           resources:
             {{- toYaml .Values.agent.resources | nindent 12 }}
           readinessProbe:
@@ -72,5 +80,11 @@ spec:
         - name: nvidia-lib
           hostPath:
             path: {{ .Values.nvidia.libHostDir }}
+            type: Directory
+        {{- end }}
+        {{- if .Values.nvidia.devAccess }}
+        - name: host-dev
+          hostPath:
+            path: /dev
             type: Directory
         {{- end }}

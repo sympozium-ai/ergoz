@@ -14,6 +14,13 @@ nvidia:
   # the agent when set (e.g. /usr/lib/x86_64-linux-gnu). Not needed when the
   # NVIDIA container toolkit / device plugin injects the driver libraries.
   libHostDir: ""
+  # -- Opt-in: run the AGENT privileged with host /dev mounted so NVML can
+  # open /dev/nvidiactl + /dev/nvidiaN (hardcoded paths; the device cgroup
+  # denies them to unprivileged pods). Needed on NVIDIA nodes where no
+  # device plugin / CDI injects the device nodes. The agent keeps
+  # runAsNonRoot + readOnlyRootFilesystem (the nodes are world-rw); the
+  # collector is never privileged.
+  devAccess: false
 
 agent:
   # -- Power sampling cadence. A hwmon read costs ~5 µs; 1s is cheap.
