@@ -149,7 +149,8 @@ Empirical, not aspirational:
 | AMD Strix Halo APU (`amdgpu`) | hwmon `power1_input` + `gpu_metrics` v3.0 | Live: socket/gfx/per-core decomposition agrees with hwmon within 0.2 W |
 | AMD XDNA NPU (`amdxdna`) | runtime_status | Live: reported suspended, synthetic 0 W |
 | Intel Lunar Lake iGPU (`xe`) | — | Live: correctly reported unmeasurable (no hwmon power exists; a known kernel gap) |
-| NVIDIA GeForce | NVML via runtime dlopen (purego — no cgo, static build preserved) | Synthetic: real dlopen path validated against a compiled stub `libnvidia-ml.so.1` (power, RTD3 suspend gate, string marshaling); hardware validation pending |
+| NVIDIA Tesla T4 (Turing) | NVML via runtime dlopen (purego — no cgo, static build preserved) | Live: 14.1 W idle on GCP passthrough, sane and stable (needs `nvidia.devAccess` or device-plugin injection — NVML opens `/dev/nvidia*`) |
+| NVIDIA GeForce | NVML (same path as T4) | Synthetic + T4-validated dlopen path; consumer-card specifics pending real hardware (RTD3 suspend behavior can't reproduce on datacenter passthrough) |
 | Intel Arc dGPU | xe/i915 `energy1_input` (µJ counter) | Planned (Phase 1) |
 | CPU package (RAPL) | `/sys/class/powercap` (root-only) | Planned (Phase 2, opt-in privileged mode) |
 
@@ -167,6 +168,7 @@ Helm values (`charts/ergoz/values.yaml`):
 | `image.repository` / `image.tag` | ghcr, `v{appVersion}` | Container image; `--image-tag` sets this |
 | `imagePullSecrets` | `[]` | `--ghcr-token` sets `[{name: ghcr-pull}]` |
 | `nvidia.libHostDir` | `""` | Host dir with `libnvidia-ml.so.1`, mounted ro when set (unneeded with the NVIDIA container toolkit) |
+| `nvidia.devAccess` | `false` | Opt-in: privileged agent + host `/dev` so NVML can open `/dev/nvidia*` (unneeded when a device plugin / CDI injects the device nodes) |
 | `agent.sampleInterval` | `1s` | Power sampling cadence (clamped to ≥1s floor) |
 | `agent.tolerations` | `[{operator: Exists}]` | Tolerate tainted GPU nodes by default |
 | `collector.scrapeInterval` | `5s` | Agent scrape cadence |
