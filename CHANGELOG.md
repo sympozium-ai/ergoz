@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.2.2](https://github.com/sympozium-ai/ergoz/compare/v0.2.1...v0.2.2) (2026-07-14)
+
+
+### Features
+
+* **chart:** opt-in nvidia.devAccess for NVML device access ([#10](https://github.com/sympozium-ai/ergoz/issues/10)) ([aaf05f3](https://github.com/sympozium-ai/ergoz/commit/aaf05f3d8694c8952940847538f5bb458f8cbbd7)), closes [#7](https://github.com/sympozium-ai/ergoz/issues/7)
+* **cli:** ergoz status -o json|yaml for machine-readable output ([721a0cb](https://github.com/sympozium-ai/ergoz/commit/721a0cb854c93929992e882bf9f8e039c4e83740))
+
+
+### Bug Fixes
+
+* **release:** never cancel main-branch CI runs — releases gate on them ([#9](https://github.com/sympozium-ai/ergoz/issues/9)) ([e4faa57](https://github.com/sympozium-ai/ergoz/commit/e4faa5754346b24b4e4d5fce93443a1a4a95cfa8)), closes [#8](https://github.com/sympozium-ai/ergoz/issues/8)
+
 ## [0.2.1](https://github.com/sympozium-ai/ergoz/compare/v0.2.0...v0.2.1) (2026-07-13)
 
 
