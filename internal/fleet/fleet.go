@@ -129,6 +129,7 @@ func (c *Collector) scrapeAll(ctx context.Context) {
 	agents, err := c.List(ctx)
 	if err != nil {
 		log.Printf("agent discovery failed: %v", err)
+		c.ageWithoutDiscovery()
 		return
 	}
 	type res struct {
@@ -176,6 +177,22 @@ func (c *Collector) scrapeAll(ctx context.Context) {
 	snap.AgentsUp = up
 	c.snapshot = snap
 	c.mu.Unlock()
+}
+
+// ageWithoutDiscovery rebuilds the snapshot when discovery itself failed, so
+// readings age toward stale instead of the last good view being served as
+// current indefinitely. Entries are kept, not pruned: discovery failing says
+// nothing about which agents are gone, so there is no basis to drop any.
+func (c *Collector) ageWithoutDiscovery() {
+	now := time.Now()
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	snap := buildSnapshot(c.agents, now, c.staleAfter())
+	// Nothing was discovered and nothing scraped on this pass; report that
+	// rather than carrying the previous pass's counts forward.
+	snap.AgentsTotal = 0
+	snap.AgentsUp = 0
+	c.snapshot = snap
 }
 
 func (c *Collector) scrapeOne(ctx context.Context, addr string) (map[string]*dto.MetricFamily, error) {

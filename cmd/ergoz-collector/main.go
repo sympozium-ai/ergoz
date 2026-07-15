@@ -20,7 +20,7 @@ import (
 
 func main() {
 	service := envOr("ERGOZ_AGENT_SERVICE", "ergoz-agent")
-	port, _ := strconv.Atoi(envOr("ERGOZ_AGENT_PORT", "9743"))
+	port := portOr("ERGOZ_AGENT_PORT", 9743)
 	listen := envOr("ERGOZ_LISTEN", ":9744")
 	interval := durationOr("ERGOZ_SCRAPE_INTERVAL", 5*time.Second)
 
@@ -51,6 +51,16 @@ func main() {
 func envOr(key, def string) string {
 	if v := os.Getenv(key); v != "" {
 		return v
+	}
+	return def
+}
+
+func portOr(key string, def int) int {
+	if v := os.Getenv(key); v != "" {
+		if p, err := strconv.Atoi(v); err == nil && p > 0 && p < 65536 {
+			return p
+		}
+		log.Printf("ignoring invalid %s=%q, using %d", key, os.Getenv(key), def)
 	}
 	return def
 }

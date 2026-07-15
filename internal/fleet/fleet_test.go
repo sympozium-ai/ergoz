@@ -2,6 +2,7 @@ package fleet
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"net/http/httputil"
@@ -67,6 +68,57 @@ func TestStaleMarking(t *testing.T) {
 		if !d.Stale {
 			t.Fatalf("device %s not marked stale", d.PCI)
 		}
+	}
+}
+
+// TestDiscoveryFailureAgesReadings: when discovery itself fails (a headless
+// Service with no ready endpoints resolves to NXDOMAIN), the last good
+// snapshot must not keep being served as current — readings age to stale.
+func TestDiscoveryFailureAgesReadings(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/plain; version=0.0.4")
+		_, _ = w.Write([]byte(agentPayload))
+	}))
+	defer srv.Close()
+	addr := strings.TrimPrefix(srv.URL, "http://")
+
+	discoveryOK := true
+	c := New(func(context.Context) ([]string, error) {
+		if !discoveryOK {
+			return nil, errors.New("lookup ergoz-agent: no such host")
+		}
+		return []string{addr}, nil
+	}, time.Millisecond)
+
+	c.scrapeAll(context.Background())
+	if c.snapshot.TotalWatts != 20.072 {
+		t.Fatalf("fresh total = %v, want 20.072", c.snapshot.TotalWatts)
+	}
+
+	// Discovery breaks and the reading ages past the stale threshold.
+	discoveryOK = false
+	c.mu.Lock()
+	c.agents[addr].lastOK = time.Now().Add(-time.Hour)
+	c.mu.Unlock()
+	c.scrapeAll(context.Background())
+
+	if c.snapshot.StaleDevices != 2 || c.snapshot.TotalWatts != 0 {
+		t.Fatalf("discovery outage served as current: stale=%d total=%v, want 2/0",
+			c.snapshot.StaleDevices, c.snapshot.TotalWatts)
+	}
+	if len(c.snapshot.Devices) != 2 {
+		t.Fatalf("devices vanished: got %d, want 2 still visible", len(c.snapshot.Devices))
+	}
+	if c.snapshot.AgentsUp != 0 || c.snapshot.AgentsTotal != 0 {
+		t.Fatalf("agents up/total = %d/%d, want 0/0", c.snapshot.AgentsUp, c.snapshot.AgentsTotal)
+	}
+
+	// Discovery recovers: the device is current again, not stuck stale.
+	discoveryOK = true
+	c.scrapeAll(context.Background())
+	if c.snapshot.TotalWatts != 20.072 || c.snapshot.StaleDevices != 0 {
+		t.Fatalf("after recovery: total=%v stale=%d, want 20.072/0",
+			c.snapshot.TotalWatts, c.snapshot.StaleDevices)
 	}
 }
 
