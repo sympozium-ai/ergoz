@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.3](https://github.com/sympozium-ai/ergoz/compare/v0.2.2...v0.2.3) (2026-07-15)
+
+
+### Bug Fixes
+
+* **collector:** age readings when agent discovery fails ([#13](https://github.com/sympozium-ai/ergoz/issues/13)) ([9711317](https://github.com/sympozium-ai/ergoz/commit/971131737caf6877c0f1cbe02440d385addda458))
+
 ## [0.2.2](https://github.com/sympozium-ai/ergoz/compare/v0.2.1...v0.2.2) (2026-07-14)
 
 
