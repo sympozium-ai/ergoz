@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.4](https://github.com/sympozium-ai/ergoz/compare/v0.2.3...v0.2.4) (2026-08-13)
+
+
+### Features
+
+* **chart:** advertise collector Service to Sympozium by default ([#15](https://github.com/sympozium-ai/ergoz/issues/15)) ([5ebd96a](https://github.com/sympozium-ai/ergoz/commit/5ebd96a9b7d34ae08cf6c7aa0d4076a6d07cceb6))
+
 ## [0.2.3](https://github.com/sympozium-ai/ergoz/compare/v0.2.2...v0.2.3) (2026-07-15)
 
 
