@@ -61,6 +61,10 @@ ergoz status
 ergoz-system`. No CRDs and no RBAC are created; the agent runs non-root with a
 read-only `/sys` hostPath.
 
+The collector Service is labelled `sympozium.ai/collector=energy` by default,
+so a cluster running Sympozium discovers it with no extra config. Set
+`sympozium.advertise: false` to opt out.
+
 For a kind-sideloaded image: `ergoz install --image-tag dev`.
 
 ### Private-registry images

@@ -49,3 +49,11 @@ collector:
       memory: 32Mi
     limits:
       memory: 128Mi
+
+# -- Advertise the collector Service so Sympozium (or anything else looking
+# for the energy-collector role) can find it at runtime. Harmless if
+# Sympozium is not installed. Set advertise to false to stay invisible.
+# Installing Ergoz is then enough — no kubectl label, survives helm upgrade.
+sympozium:
+  advertise: true
+
