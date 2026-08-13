@@ -4,6 +4,22 @@ metadata:
   name: ergoz-collector
   labels:
     {{- include "ergoz.labels" . | nindent 4 }}
+    app.kubernetes.io/name: ergoz-collector
+    app.kubernetes.io/component: collector
+    {{- $advertise := true -}}
+    {{- with .Values.sympozium }}
+      {{- if kindIs "bool" .advertise }}
+        {{- $advertise = .advertise -}}
+      {{- end }}
+    {{- end }}
+    {{- if $advertise }}
+    sympozium.ai/collector: energy
+    {{- end }}
+  {{- if $advertise }}
+  annotations:
+    sympozium.ai/collector-port: {{ .Values.collector.port | quote }}
+    sympozium.ai/collector-path: "/api/v1/fleet"
+  {{- end }}
 spec:
   selector:
     app.kubernetes.io/name: ergoz-collector
