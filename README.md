@@ -46,9 +46,9 @@ toolchain: `GOPRIVATE=github.com/sympozium-ai go install
 github.com/sympozium-ai/ergoz/cmd/ergoz@latest`.
 
 Every release ships `ergoz-{linux,darwin}-amd64` binaries (Apple Silicon runs
-darwin-amd64 under Rosetta; linux-arm64 builds from source), a packaged
-Helm chart, and `checksums.txt` as release assets, plus a multi-arch container
-image at `ghcr.io/sympozium-ai/ergoz:vX.Y.Z`.
+darwin-amd64 under Rosetta), a packaged Helm chart, and `checksums.txt` as
+release assets, plus a linux/amd64 container image at
+`ghcr.io/sympozium-ai/ergoz:vX.Y.Z`.
 
 ## Deploy to a cluster
 
@@ -237,7 +237,7 @@ throwaway GCP spot VM (T4, ~$0.20/hr) running a GPU-injected kind cluster
 live metrics; `down` deletes it. Prereqs and knobs in the script header.
 
 Releases are cut by release-please (conventional commits); each release
-publishes CLI binaries + packaged chart as assets and pushes the multi-arch
+publishes CLI binaries + packaged chart as assets and pushes the linux/amd64
 image to ghcr. `workflow_dispatch` on the release workflow re-publishes
 assets for an existing tag.
 
