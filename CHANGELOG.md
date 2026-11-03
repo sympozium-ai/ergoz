@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.5](https://github.com/sympozium-ai/ergoz/compare/v0.2.4...v0.2.5) (2026-11-03)
+
+
+### Bug Fixes
+
+* **agent:** discover NVIDIA GPUs without a DRM card; drop firmware framebuffers ([a394c28](https://github.com/sympozium-ai/ergoz/commit/a394c2827a586cacb7a9bd47f36c38de9de5fcad))
+* **deps:** patch govulncheck findings (Go 1.26.10, x/net v0.60.0, oras-go v2.6.2) ([f066afd](https://github.com/sympozium-ai/ergoz/commit/f066afd4f77769134a1cb7669396ca2d4e2fc5f4))
+
 ## [0.2.4](https://github.com/sympozium-ai/ergoz/compare/v0.2.3...v0.2.4) (2026-08-13)
 
 
