@@ -1,5 +1,5 @@
 // ergoz-agent is the per-node DaemonSet: it identifies accelerators via
-// llmfit-dra's probe walk, samples their power from vanilla-kernel sysfs,
+// llmfit-dra's probe walk (refined by internal/discover), samples their power from vanilla-kernel sysfs,
 // and serves Prometheus metrics for the Ergoz collector to aggregate.
 package main
 
@@ -16,9 +16,9 @@ import (
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
+	"github.com/sympozium-ai/ergoz/internal/discover"
 	"github.com/sympozium-ai/ergoz/internal/nvml"
 	"github.com/sympozium-ai/ergoz/internal/sampler"
-	"github.com/sympozium-ai/llmfit-dra/pkg/probe"
 )
 
 func main() {
@@ -35,7 +35,10 @@ func main() {
 		interval = time.Second
 	}
 
-	devices, err := probe.New(sysRoot, procRoot).Walk()
+	// llmfit-dra's probe walk, plus PCI-bus discovery for GPUs without a DRM
+	// card (headless NVIDIA without nvidia_drm) and minus firmware
+	// framebuffers, which are not accelerators.
+	devices, err := discover.Devices(sysRoot, procRoot)
 	if err != nil {
 		log.Fatalf("device walk failed: %v", err)
 	}

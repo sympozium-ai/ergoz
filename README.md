@@ -184,8 +184,10 @@ Helm values (`charts/ergoz/values.yaml`):
 A hwmon read costs ~5 µs, so sampling is effectively free down to sub-second
 intervals; the real cost axis is metric fan-out. Suggested tiers:
 `sampleInterval: 1s` + `scrapeInterval: 5s` (default, near-realtime),
-`30s`/`1m` (dashboards), `5m` (capacity trending). The exported energy counter
-integrates at sample resolution regardless of how rarely you scrape.
+`30s`/`1m` (dashboards), `5m` (capacity trending). Ergoz exports
+point-in-time watts only (no energy counter): a slow scrape sees fewer
+samples, so integrate `powerWatts × time` downstream at the resolution you
+need.
 
 ## Architecture
 
@@ -199,13 +201,20 @@ integrates at sample resolution regardless of how rarely you scrape.
 Each **agent** walks the node's devices once at startup, then samples on a
 loop: amdgpu hwmon `power1_input` (µW), the amdgpu `gpu_metrics` v3.0 blob
 (validated decode), NVIDIA via NVML, and `power/runtime_status` as the suspend
-gate — integrating energy as Σ&nbsp;W·Δt and serving `:9743/metrics`. The
+gate — publishing the current watts as gauges on `:9743/metrics` (no energy
+accumulation). The
 **collector** scrapes every agent over headless-Service DNS and re-serves the
 fleet as merged Prometheus metrics plus the JSON API on `:9744`.
 
 Device identity comes from
 [`llmfit-dra/pkg/probe`](https://github.com/sympozium-ai/llmfit-dra) — one
-source of truth for accelerator identification across the org. No CRDs, no
+source of truth for accelerator identification across the org. Ergoz adds
+two corrections on top (`internal/discover`): display-class PCI functions
+bound to an accelerator driver are also found on the PCI bus, so headless
+NVIDIA datacenter GPUs without the optional `nvidia_drm` module (no DRM card;
+the stock AWS GPU AMI) are measured, deduplicated with DRM-found devices by PCI
+address; and firmware boot framebuffers (`simple-framebuffer`, `simpledrm`,
+`efifb`, …) are dropped, since they are not accelerators. No CRDs, no
 RBAC (nothing talks to the Kubernetes API), non-root end to end.
 
 ## Security notes
